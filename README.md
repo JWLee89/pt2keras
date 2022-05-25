@@ -1,2 +1,6 @@
-# pt-keras
-A PyTorch To Keras Model Converter
+# pt2keras
+
+A simple PyTorch To Keras Model Converter.
+
+
+
