@@ -1,7 +1,10 @@
 import typing as t
 
 import torch.nn as nn
+from functools import wraps
 from tensorflow import keras
+
+from ...main import Pt2Keras
 
 
 class DuplicateLayerConverterError(ValueError):
@@ -24,14 +27,12 @@ def _add_weights_and_bias_to_keras(pytorch_layer: nn.Module, keras_layer: keras.
     # Update weights and bias
     weights = []
     if pytorch_layer.weight is not None:
+        keras_layer.get_weights()
         weights.append(pytorch_layer.weight.data.numpy().transpose((2, 3, 1, 0)))
     if pytorch_layer.bias is not None:
         weights.append(pytorch_layer.bias.data.numpy())
     if weights:
         keras_layer.set_weights(weights)
-
-
-_SUPPORTED_LAYERS = {}
 
 
 def converter(pytorch_module: t.ClassVar, keras_equivalent) -> t.Callable:
@@ -43,36 +44,40 @@ def converter(pytorch_module: t.ClassVar, keras_equivalent) -> t.Callable:
     if not issubclass(pytorch_module, nn.Module):
         raise ValueError(f'Please pass in a nn.Module. Passed in: {pytorch_module}')
 
-    if pytorch_module.__class__.__name__ in _SUPPORTED_LAYERS:
-        raise DuplicateLayerConverterError(f'{pytorch_module.__class__.__name__} converter already exists ...')
+    key = Pt2Keras._get_key(pytorch_module)
 
-    _LOGGER.debug(f'Registering pytorch layer: {pytorch_module.__class__}')
+    if key in Pt2Keras._SUPPORTED_LAYERS:
+        raise DuplicateLayerConverterError(f'{key} converter already exists ...')
 
     def inner(wrapped_fn: t.Callable) -> t.Callable:
-        def created_converter(pytorch_layer: nn.Module, *args, **kwargs) -> t.Any:
+
+        @wraps(wrapped_fn)
+        def created_converter(*args, **kwargs) -> t.Any:
             """
+            Given a pytorch operation or layer, directly port it to keras
             Args:
                 pytorch_layer: The PyTorch layer that should be converted into Keras
-                *args:
-                **kwargs:
-
             Returns:
-
+                The converted keras layer with all states copied / patched onto the keras layer
             """
-            if not isinstance(pytorch_layer, nn.Conv2d):
-                raise TypeError(f'{type(pytorch_layer)} is not a valid PyTorch layer')
 
             # Should add all available arguments and so on
-            keras_layer = wrapped_fn(pytorch_layer, keras_equivalent, *args, **kwargs)
+            keras_layer = wrapped_fn(*args, **kwargs)
 
             # Post processing
             # -------------------
 
             # 1. Add weights and bias
-            _add_weights_and_bias_to_keras(pytorch_layer, keras_layer)
+            # _add_weights_and_bias_to_keras(pytorch_layer, keras_layer)
 
             return keras_layer
+
+        print(f'Registering pytorch converter for layer: {pytorch_module}')
+        Pt2Keras._LOGGER.warning(f'Registering pytorch converter for layer: {pytorch_module}')
+        Pt2Keras._SUPPORTED_LAYERS[pytorch_module] = created_converter
+
+        print(Pt2Keras._SUPPORTED_LAYERS)
+
         return created_converter
 
     return inner
-

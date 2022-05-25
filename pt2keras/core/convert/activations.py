@@ -1,3 +1,4 @@
+import tensorflow as tf
 import torch.nn as nn
 from tensorflow import keras
 
@@ -15,6 +16,5 @@ def silu(pytorch_layer):
             The converted conv2d layer
         """
     # Add Stride
-    print('yee')
-    keras_layer = keras.activations.swish()
+    keras_layer = tf.keras.layers.Lambda(keras.activations.swish)
     return keras_layer
