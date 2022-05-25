@@ -1,10 +1,7 @@
 """
 All convolution operation converter
 """
-import torch.nn as nn
-from tensorflow import keras
-
-from . import converter
+from . import *
 
 
 @converter(nn.Conv2d, keras.layers.Conv2D)

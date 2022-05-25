@@ -1,4 +1,9 @@
-
+# Dependencies: Don't need GPU
+# -------------------
 torch
 torchvision
 tensorflow-cpu
+
+# Test
+# -------------------
+pytest
