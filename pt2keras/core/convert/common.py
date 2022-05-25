@@ -1,4 +1,7 @@
-from . import *
+import typing as t
+
+import torch.nn as nn
+from tensorflow import keras
 
 
 class DuplicateLayerConverterError(ValueError):
@@ -31,13 +34,13 @@ def _add_weights_and_bias_to_keras(pytorch_layer: nn.Module, keras_layer: keras.
 _SUPPORTED_LAYERS = {}
 
 
-def converter(pytorch_module: nn.Module, keras_equivalent) -> t.Callable:
+def converter(pytorch_module: t.ClassVar, keras_equivalent) -> t.Callable:
     """
     Decorator for adding custom converters.
     This will inspect all functions decorated with
     converters
     """
-    if not isinstance(pytorch_module, nn.Module):
+    if not issubclass(pytorch_module, nn.Module):
         raise ValueError(f'Please pass in a nn.Module. Passed in: {pytorch_module}')
 
     if pytorch_module.__class__.__name__ in _SUPPORTED_LAYERS:

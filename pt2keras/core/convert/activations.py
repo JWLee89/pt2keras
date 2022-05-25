@@ -1,7 +1,10 @@
-from . import converter
+import torch.nn as nn
+from tensorflow import keras
+
+from .common import converter
 
 
-@converter(nn.SiLU(), keras.activations.swish)
+@converter(nn.SiLU, keras.activations.swish)
 def silu(pytorch_layer):
     """
         Given a PyTorch conv2d layer, output the equivalent keras conversion
