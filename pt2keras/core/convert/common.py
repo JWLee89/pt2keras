@@ -1,5 +1,7 @@
 import typing as t
 
+import tensorflow as tf
+import torch
 import torch.nn as nn
 from functools import wraps
 from tensorflow import keras
@@ -35,7 +37,37 @@ def _add_weights_and_bias_to_keras(pytorch_layer: nn.Module, keras_layer: keras.
         keras_layer.set_weights(weights)
 
 
-def converter(pytorch_module: t.ClassVar, keras_equivalent) -> t.Callable:
+def get_test_input_data(pt_layer: nn.Module,
+                        batch_size: int = 2,
+                        channel: int = 3,
+                        height: int = 16,
+                        width: int = 16) -> t.Tuple[torch.Tensor, tf.Tensor]:
+    if isinstance(pt_layer, nn.Conv2d):
+        assert pt_layer.kernel_size[0] == pt_layer.kernel_size[1], \
+            f'kernel_size should be square. Actual: {pt_layer.kernel_size}'
+        x_pt = torch.randn(batch_size, pt_layer.kernel_size[0], height, width)
+    elif isinstance(pt_layer, nn.Linear):
+        x_pt = torch.randn(batch_size, pt_layer.in_features)
+    else:
+        x_pt = torch.randn(batch_size, channel, height, width)
+
+    # (B, C, H, W) -> (B, H, W, C)
+    x_keras = tf.convert_to_tensor(x_pt.data.numpy().transpose(0, 2, 3, 1))
+    return x_pt, x_keras
+
+
+def _test_layer(pt_layer: nn.Module, keras_layer, batch_size: int = 2):
+
+    x_pt, x_keras = get_test_input_data(pt_layer)
+
+    # get Pt output
+    output_pt = pt_layer(x_pt)
+    # A batch of images
+    if len(output_pt == 4):
+        output_pt = output_pt.permute(0, 2, 3, 1)
+
+
+def converter(pytorch_module: t.ClassVar) -> t.Callable:
     """
     Decorator for adding custom converters.
     This will inspect all functions decorated with

@@ -7,13 +7,12 @@ from tensorflow import keras
 from .common import converter
 
 
-@converter(nn.Conv2d, keras.layers.Conv2D)
+@converter(nn.Conv2d)
 def conv2d(pytorch_conv2d: nn.Conv2d) -> keras.layers.Layer:
     """
     Given a PyTorch conv2d layer, output the equivalent keras conversion
     Args:
         pytorch_conv2d: The conv2d layer to convert
-        keras_conv2d: The output conv2d layer in keras
 
     Returns:
         The converted conv2d layer

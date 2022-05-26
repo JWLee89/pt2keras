@@ -37,7 +37,6 @@ class Pt2Keras:
 
     def _convert(self, model: nn.Module):
         count = 0
-        output = []
         keras_model = keras.Sequential()
         for name, module in model.named_modules():
             if isinstance(module, nn.Sequential):

@@ -8,13 +8,24 @@ from pt2keras.core.convert.conv import conv2d
 from pt2keras import Pt2Keras
 import tensorflow as tf
 
-if __name__ == '__main__':
+from pt2keras.core.convert.common import converter
 
+
+@converter(nn.MaxPool2d)
+def max_pool_2d(pytorch_max_pool: nn.MaxPool2d):
+    stride = pytorch_max_pool.stride
+    pool_size = pytorch_max_pool.kernel_size
+    strides = (stride, stride) if isinstance(stride, tuple) else stride
+    return tf.keras.layers.MaxPooling2D(pool_size=pool_size, strides=strides)
+
+
+if __name__ == '__main__':
     conv = nn.Conv2d(3, 16, (1, 1), (2, 2), bias=True)
     act = nn.SiLU()
     layers = nn.Sequential(
         conv,
-        act
+        act,
+        nn.MaxPool2d(2)
     )
 
     converter = Pt2Keras()
@@ -26,6 +37,8 @@ if __name__ == '__main__':
     model = converter.convert(layers)
     x = tf.ones((1, 32, 32, 3))
     output = model(x)
+    print(f'Output: {output_pt.shape}')
+    print(f'Output: {output.shape}')
     print(f'Output: {output_pt}')
     print(f'Output: {output}')
 
