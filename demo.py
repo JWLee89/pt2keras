@@ -2,8 +2,6 @@ import logging
 
 import torch
 import torch.nn as nn
-from pt2keras.core.convert.activations import silu
-from pt2keras.core.convert.conv import conv2d
 
 from pt2keras import Pt2Keras
 import tensorflow as tf
@@ -11,7 +9,7 @@ import tensorflow as tf
 from pt2keras.core.convert.common import converter
 
 
-@converter(nn.MaxPool2d)
+@converter(nn.MaxPool2d, override=True)
 def max_pool_2d(pytorch_max_pool: nn.MaxPool2d):
     stride = pytorch_max_pool.stride
     pool_size = pytorch_max_pool.kernel_size
@@ -22,14 +20,23 @@ def max_pool_2d(pytorch_max_pool: nn.MaxPool2d):
 if __name__ == '__main__':
     conv = nn.Conv2d(3, 16, (1, 1), (2, 2), bias=True)
     act = nn.SiLU()
+    conv_transpose = nn.ConvTranspose2d(16, 32, kernel_size=(2, 2), stride=(2, 2))
     layers = nn.Sequential(
         conv,
         act,
-        nn.MaxPool2d(2)
+        nn.MaxPool2d(2),
+        conv_transpose,
     )
 
     converter = Pt2Keras()
     converter.set_logging_level(logging.DEBUG)
+
+    # from torchvision.models.efficientnet import efficientnet_b0
+    # efficientnet = efficientnet_b0(pretrained=True)
+    supported_layers, unsupported_layers = converter.inspect(layers)
+    print(f'Supported layers: {supported_layers}')
+    print(f'Unsupported layers: {unsupported_layers}')
+    print(f'Is convertible: {converter.is_convertible(layers)}')
 
     x = torch.ones(1, 3, 32, 32)
     output_pt = layers(x).permute(0, 2, 3, 1)
@@ -41,15 +48,3 @@ if __name__ == '__main__':
     print(f'Output: {output.shape}')
     print(f'Output: {output_pt}')
     print(f'Output: {output}')
-
-    # x = act(x)
-    # print(x)
-    #
-    # import tensorflow as tf
-    # y = tf.ones([4])
-    #
-    # from tensorflow.keras.activations import swish
-    #
-    # y = swish(y)
-    # import numpy as np
-    # np.testing.assert_allclose(x.numpy(), y.numpy(), rtol=1e-5, atol=0)

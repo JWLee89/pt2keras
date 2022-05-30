@@ -25,6 +25,27 @@ class Pt2Keras:
     def convert(self, model: nn.Module):
         return self._convert(model)
 
+    def inspect(self, model: nn.Module) -> t.Tuple[t.List, t.List]:
+        """
+        Given a PyTorch model, return a list of
+        unique modules in the model.
+        """
+        supported_layers = []
+        unsupported_layers = []
+        for name, module in model.named_modules():
+            key = Pt2Keras._get_key(module)
+            if key in Pt2Keras._SUPPORTED_LAYERS and key not in supported_layers:
+                supported_layers.append(module)
+            # We dont count sequential as a unique layer
+            elif not isinstance(module, nn.Sequential) and key not in unsupported_layers:
+                unsupported_layers.append(module)
+
+        return supported_layers, unsupported_layers
+
+    def is_convertible(self, model):
+        supported_layers, unsupported_layers = self.inspect(model)
+        return len(unsupported_layers) == 0
+
     def convert_layer(self, layer: nn.Module):
         key = Pt2Keras._get_key(layer)
         if key in Pt2Keras._SUPPORTED_LAYERS:
@@ -46,7 +67,5 @@ class Pt2Keras:
             keras_model.add(keras_layer)
             count += 1
 
-        Pt2Keras._LOGGER.debug(f'Processed: {count} layers')
-        Pt2Keras._LOGGER.debug(f'Registered converters: {Pt2Keras._SUPPORTED_LAYERS}')
+        Pt2Keras._LOGGER.debug(f'Successfully converted {count} PyTorch layers: {Pt2Keras._SUPPORTED_LAYERS.keys()}')
         return keras_model
-
