@@ -31,9 +31,9 @@ if __name__ == '__main__':
     converter = Pt2Keras()
     converter.set_logging_level(logging.DEBUG)
 
-    # from torchvision.models.efficientnet import efficientnet_b0
-    # efficientnet = efficientnet_b0(pretrained=True)
-    supported_layers, unsupported_layers = converter.inspect(layers)
+    from torchvision.models.efficientnet import efficientnet_b0
+    efficientnet = efficientnet_b0(pretrained=True)
+    supported_layers, unsupported_layers = converter.inspect(efficientnet)
     print(f'Supported layers: {supported_layers}')
     print(f'Unsupported layers: {unsupported_layers}')
     print(f'Is convertible: {converter.is_convertible(layers)}')
@@ -46,5 +46,5 @@ if __name__ == '__main__':
     output = model(x)
     print(f'Output: {output_pt.shape}')
     print(f'Output: {output.shape}')
-    print(f'Output: {output_pt}')
-    print(f'Output: {output}')
+    # print(f'Output: {output_pt}')
+    # print(f'Output: {output}')

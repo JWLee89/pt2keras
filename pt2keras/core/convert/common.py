@@ -138,6 +138,7 @@ def converter(pytorch_module: t.ClassVar,
     if not issubclass(pytorch_module, nn.Module):
         raise ValueError(f'Please pass in a nn.Module. Passed in: {pytorch_module}')
 
+    # Retrieve unique key
     key = Pt2Keras._get_key(pytorch_module)
 
     if override:
@@ -177,7 +178,7 @@ def converter(pytorch_module: t.ClassVar,
 
         if not override:
             Pt2Keras._LOGGER.warning(f'Registering pytorch converter for layer: {pytorch_module}')
-        Pt2Keras._SUPPORTED_LAYERS[pytorch_module] = created_converter
+        Pt2Keras._SUPPORTED_LAYERS[key] = created_converter
         return created_converter
 
     return inner
