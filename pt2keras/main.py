@@ -42,10 +42,10 @@ class Pt2Keras:
                 continue
             key = Pt2Keras._get_key(module)
             if key in Pt2Keras._SUPPORTED_LAYERS and key not in supported_layers:
-                supported_layers.append(module)
+                supported_layers.append(key)
             # We dont count sequential as a unique layer
-            elif not isinstance(module, nn.Sequential) and key not in unsupported_layers:
-                unsupported_layers.append(module)
+            elif key not in Pt2Keras._SUPPORTED_LAYERS and key not in unsupported_layers:
+                unsupported_layers.append(key)
 
         return supported_layers, unsupported_layers
 
