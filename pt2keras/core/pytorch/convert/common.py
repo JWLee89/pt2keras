@@ -7,7 +7,7 @@ import torch.nn as nn
 from functools import wraps
 from tensorflow import keras
 
-from ...main import Pt2Keras
+from pt2keras.core.pytorch.graph import Graph
 
 
 class DuplicateLayerConverterError(ValueError):
@@ -49,9 +49,9 @@ def _add_weights_and_bias_to_keras(pytorch_layer: nn.Module, keras_layer: keras.
     weights = []
     if pytorch_layer.weight is not None:
         keras_layer.get_weights()
-        weights.append(pytorch_layer.weight.data.numpy().transpose((2, 3, 1, 0)))
+        weights.append(pytorch_layer.weight.numpy().transpose((2, 3, 1, 0)))
     if pytorch_layer.bias is not None:
-        weights.append(pytorch_layer.bias.data.numpy())
+        weights.append(pytorch_layer.bias.numpy())
     if weights:
         keras_layer.set_weights(weights)
 
@@ -87,9 +87,9 @@ def get_test_input_data(pt_layer: nn.Module,
 
     # (B, C, H, W) -> (B, H, W, C)
     if len(x_pt.shape) == 4:
-        x_keras = tf.convert_to_tensor(x_pt.data.numpy().transpose(0, 2, 3, 1))
+        x_keras = tf.convert_to_tensor(x_pt.numpy().transpose(0, 2, 3, 1))
     elif len(x_pt.shape) < 4:
-        x_keras = tf.convert_to_tensor(x_pt.data.numpy())
+        x_keras = tf.convert_to_tensor(x_pt.numpy())
     else:
         raise ValueError('keras input converter not implemented for '
                          f'Tensor with: {len(x_pt.shape)} dimensions')
@@ -106,11 +106,8 @@ def _test_layer(pt_layer: nn.Module, keras_layer, batch_size: int = 2, atol=1e-4
     """
 
     x_pt, x_keras = get_test_input_data(pt_layer, batch_size)
-
-    print(f'Pytorch data: {x_pt.shape}, keras: {x_keras.shape}')
     # get Pt output
     output_pt = pt_layer(x_pt)
-    print(output_pt)
     x_pt = x_pt.cpu().detach().numpy()
     # A batch of images
     if len(output_pt.shape) == 4:
@@ -161,13 +158,13 @@ def converter(pytorch_module: t.ClassVar,
         raise ValueError(f'Please pass in a nn.Module. Passed in: {pytorch_module}')
 
     # Retrieve unique key
-    key = Pt2Keras._get_key(pytorch_module)
+    key = Graph._get_key(pytorch_module)
 
     if override:
         _LOGGER.warning(f'WARNING:: Overriding existing converter for PyTorch layer: {pytorch_module}. '
                         f'Please double check to ensure that this is the desired behavior.')
 
-    if not override and key in Pt2Keras._SUPPORTED_LAYERS:
+    if not override and key in Graph._SUPPORTED_LAYERS:
         raise DuplicateLayerConverterError(f'{key} converter already exists ...')
 
     def inner(wrapped_fn: t.Callable) -> t.Callable:
@@ -194,20 +191,19 @@ def converter(pytorch_module: t.ClassVar,
             # 2. Perform tests to see whether the two layers (pytorch and keras)
             # are outputting the same value and shape
             test_layer = _test_layer if output_testing_fn is None else output_testing_fn
-
             # try testing. If it fails, try adding custom test via decorator
             try:
                 test_layer(pytorch_layer, keras_layer, *args, **kwargs)
             except:
                 # If passed in test layers, we will skip the test.
                 # Instead, a warning will be issued.
-                Pt2Keras._LOGGER.warning(f'Test failed for layer: {pytorch_module}. Skipping ... ')
+                Graph._LOGGER.warning(f'Test failed for layer: {pytorch_module}. Skipping ... ')
 
             return keras_layer
 
         if not override:
-            Pt2Keras._LOGGER.warning(f'Registering pytorch converter for layer: {pytorch_module}')
-        Pt2Keras._SUPPORTED_LAYERS[key] = created_converter
+            Graph._LOGGER.warning(f'Registering pytorch converter for layer: {pytorch_module}')
+        Graph._SUPPORTED_LAYERS[key] = created_converter
         return created_converter
 
     return inner

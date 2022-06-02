@@ -20,9 +20,9 @@ from .common import converter
 def batch_norm_2d(layer: nn.Module):
     epsilon = layer.eps
     momentum = layer.momentum
-    weights = [layer.weight.data.numpy()]
-    weights.append(layer.bias.data.numpy())
-    weights.append(layer.running_mean.data.numpy())
+    weights = [layer.weight.numpy()]
+    weights.append(layer.bias.numpy())
+    weights.append(layer.running_mean.numpy())
     var = layer.running_var
     weights.append(var)
 
@@ -39,9 +39,9 @@ def batch_norm_2d(layer: nn.Module):
 def batch_norm_2d(layer: nn.Module):
     epsilon = layer.eps
     momentum = layer.momentum
-    weights = [layer.weight.data.numpy()]
-    weights.append(layer.bias.data.numpy())
-    weights.append(layer.running_mean.data.numpy())
+    weights = [layer.weight.detach().numpy()]
+    weights.append(layer.bias.detach().numpy())
+    weights.append(layer.running_mean.detach().numpy())
     var = layer.running_var
     weights.append(var)
 

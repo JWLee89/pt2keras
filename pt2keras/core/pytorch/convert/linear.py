@@ -8,12 +8,12 @@ from .common import converter
 
 
 @converter(nn.Linear)
-def max_pool_2d(layer: nn.Linear):
-    weights = [layer.weight.data.numpy()]
+def linear(layer: nn.Linear):
+    weights = [layer.weight.numpy()]
     if layer.bias is not None:
-        weights.append(layer.bias.data.numpy())
+        weights.append(layer.bias.numpy())
 
-    keras_layer = keras.layers.Dense(
+    keras_layer = keras.layers.MaxPool2D(
         layer.in_features,
         activation=None,
         use_bias=layer.bias is not None,
