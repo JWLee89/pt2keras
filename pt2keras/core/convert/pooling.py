@@ -13,3 +13,10 @@ def max_pool_2d(pytorch_max_pool: nn.MaxPool2d):
     pool_size = pytorch_max_pool.kernel_size
     strides = (stride, stride) if isinstance(stride, tuple) else stride
     return keras.layers.MaxPooling2D(pool_size=pool_size, strides=strides)
+
+
+@converter(nn.AdaptiveAvgPool2d)
+def adaptive_avg_pool_2d(layer: nn.AdaptiveAvgPool2d):
+    return keras.layers.GlobalAveragePooling2D(
+        data_format=None, keepdims=False,
+    )

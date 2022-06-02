@@ -1,4 +1,3 @@
-import inspect
 import logging
 import typing as t
 
@@ -27,8 +26,8 @@ class Pt2Keras:
     def set_logging_level(self, logging_level):
         Pt2Keras._LOGGER.setLevel(logging_level)
 
-    def convert(self, model: nn.Module):
-        return self._convert(model)
+    def convert(self, model: nn.Module, output_data):
+        return self._convert(model, output_data)
 
     def inspect(self, model: nn.Module) -> t.Tuple[t.List, t.List]:
         """
@@ -63,9 +62,10 @@ class Pt2Keras:
         else:
             raise ValueError(f'Layer: {layer.__class__.__name__} is not supported ... ')
 
-    def _convert(self, model: nn.Module):
+    def _convert(self, model: nn.Module, output_data):
         count = 0
         keras_model = keras.Sequential()
+        items = []
         for name, module in model.named_modules():
             if not list(module.children()) == []:  # if not leaf node, skip
                 continue
@@ -75,7 +75,10 @@ class Pt2Keras:
                 continue
             keras_layer = self.convert_layer(module)
             keras_model.add(keras_layer)
+            items.append(keras_layer)
             count += 1
 
-        Pt2Keras._LOGGER.debug(f'Successfully converted {count} PyTorch layers: {Pt2Keras._SUPPORTED_LAYERS.keys()}')
+        str_repr = '\n'.join(f'{i + 1} - {layer}' for i, layer in enumerate(items))
+        Pt2Keras._LOGGER.debug(f'Successfully converted {count} PyTorch layers: '
+                               f'\n{str_repr}')
         return keras_model
