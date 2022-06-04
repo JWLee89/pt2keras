@@ -18,3 +18,8 @@ def silu(pytorch_layer):
     # Add Stride
     keras_layer = tf.keras.layers.Lambda(keras.activations.swish)
     return keras_layer
+
+
+@converter(nn.Sigmoid)
+def sigmoid(layer):
+    return tf.keras.layers.Lambda(keras.activations.sigmoid)

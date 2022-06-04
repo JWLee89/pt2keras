@@ -25,9 +25,9 @@ def conv2d(pytorch_conv2d: nn.Conv2d) -> keras.layers.Layer:
 
     weights = []
     if pytorch_conv2d.weight is not None:
-        weights.append(pytorch_conv2d.weight.data.numpy().transpose((2, 3, 1, 0)))
+        weights.append(pytorch_conv2d.weight.detach().numpy().transpose((2, 3, 1, 0)))
     if pytorch_conv2d.bias is not None:
-        weights.append(pytorch_conv2d.bias.data.numpy())
+        weights.append(pytorch_conv2d.bias.detach().numpy())
 
     # Add Stride
     strides = pytorch_conv2d.stride
@@ -50,9 +50,9 @@ def conv2d_transpose(layer: nn.ConvTranspose2d):
 
     weights = []
     if layer.weight is not None:
-        weights.append(layer.weight.data.numpy().transpose((2, 3, 1, 0)))
+        weights.append(layer.weight.detach().numpy().transpose((2, 3, 1, 0)))
     if layer.bias is not None:
-        weights.append(layer.bias.data.numpy())
+        weights.append(layer.bias.detach().numpy())
 
     stride_val = strides if isinstance(strides, int) else strides[0]
     dilation = dilation if isinstance(dilation, int) else dilation[0]

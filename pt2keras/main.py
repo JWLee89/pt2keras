@@ -1,24 +1,64 @@
-import inspect
 import logging
+import os
 import typing as t
 
+import onnx
 import torch.nn as nn
-from tensorflow import keras
 
 
 class Pt2Keras:
 
-    _SUPPORTED_LAYERS = {}
+    _AVAILABLE_IR = ('onnx', 'pytorch')
+    _SUPPORTED_LAYERS = {
+        key: {} for key in _AVAILABLE_IR
+    }
     _LOGGER = logging.getLogger()
 
-    _LAYER_KEY = '__name__'
-
-    def __init__(self):
+    def __init__(self, model):
+        self.graph = None
+        self.model = model
+        # check model type
+        if isinstance(self.model, nn.Module):
+            self.intermediate_rep = Pt2Keras._AVAILABLE_IR[-1]
+        elif isinstance(self.model, onnx.ModelProto):
+            self.intermediate_rep = Pt2Keras._AVAILABLE_IR[0]
+        else:
+            raise ValueError(f'Invalid model type. '
+                             f'Please pass in one of the following values: {Pt2Keras._AVAILABLE_IR}')
         logging.basicConfig()
+        self._validate()
+
+    def _validate(self):
+        if self.intermediate_rep not in Pt2Keras._AVAILABLE_IR:
+            raise ValueError(f'Intermediate representation value - {self.intermediate_rep} '
+                             f'is not available. Choices: {Pt2Keras._AVAILABLE_IR}')
+
+
+    @property
+    def intermediate_rep(self):
+        return self._intermediate_rep
+
+    @intermediate_rep.setter
+    def intermediate_rep(self, value):
+        if value == 'onnx':
+            for entry in os.scandir('pt2keras/core/onnx/convert'):
+                if entry.is_file():
+                    string = f'from pt2keras.core.onnx.convert import {entry.name}'[:-3]
+                    exec(string)
+            from pt2keras.core.onnx.graph import Graph
+        elif value == 'pytorch':
+            for entry in os.scandir('pt2keras/core/pytorch/convert'):
+                if entry.is_file():
+                    string = f'from pt2keras.core.pytorch.convert import {entry.name}'[:-3]
+                    exec(string)
+            from pt2keras.core.pytorch.graph import Graph
+        else:
+            raise ValueError('Invalid property')
+        self.graph = Graph(self.model)
+        self._intermediate_rep = value
 
     @staticmethod
     def _get_key(layer: t.ClassVar):
-        # return getattr(layer, Pt2Keras._LAYER_KEY)
         try:
             return layer.__name__
         except:
@@ -28,54 +68,18 @@ class Pt2Keras:
         Pt2Keras._LOGGER.setLevel(logging_level)
 
     def convert(self, model: nn.Module):
-        return self._convert(model)
+        return self.graph._convert(model)
 
     def inspect(self, model: nn.Module) -> t.Tuple[t.List, t.List]:
         """
         Given a PyTorch model, return a list of
         unique modules in the model.
         """
-        supported_layers = []
-        unsupported_layers = []
-        for name, module in model.named_modules():
-            if not list(module.children()) == []:  # if not leaf node, ski[
-                continue
-            key = Pt2Keras._get_key(module)
-            if key in Pt2Keras._SUPPORTED_LAYERS and key not in supported_layers:
-                supported_layers.append(key)
-            # We dont count sequential as a unique layer
-            elif key not in Pt2Keras._SUPPORTED_LAYERS and key not in unsupported_layers:
-                unsupported_layers.append(key)
-
-        return supported_layers, unsupported_layers
+        return self.graph.inspect(model)
 
     def is_convertible(self, model):
         supported_layers, unsupported_layers = self.inspect(model)
         return len(unsupported_layers) == 0
 
     def convert_layer(self, layer: nn.Module):
-        key = Pt2Keras._get_key(layer)
-        if key in Pt2Keras._SUPPORTED_LAYERS:
-            Pt2Keras._LOGGER.debug(f'Converting {layer} ... ')
-            conversion_function = Pt2Keras._SUPPORTED_LAYERS[key]
-            keras_layer = conversion_function(layer)
-            return keras_layer
-        else:
-            raise ValueError(f'Layer: {layer.__class__.__name__} is not supported ... ')
-
-    def _convert(self, model: nn.Module):
-        count = 0
-        keras_model = keras.Sequential()
-        for name, module in model.named_modules():
-            if not list(module.children()) == []:  # if not leaf node, skip
-                continue
-
-            if isinstance(module, nn.Sequential):
-                Pt2Keras._LOGGER.info('Skipping nn.Sequential ... ')
-                continue
-            keras_layer = self.convert_layer(module)
-            keras_model.add(keras_layer)
-            count += 1
-
-        Pt2Keras._LOGGER.debug(f'Successfully converted {count} PyTorch layers: {Pt2Keras._SUPPORTED_LAYERS.keys()}')
-        return keras_model
+        return self.graph.convert_layeR(layer)

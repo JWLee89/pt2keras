@@ -2,7 +2,19 @@
 # -------------------
 torch
 torchvision
-tensorflow-cpu
+onnx
+
+# Tensorflow
+tensorflow; sys_platform != 'darwin' or platform_machine != 'arm64'
+tensorflow-macos; sys_platform == 'darwin' and platform_machine == 'arm64'
+
+# If you get the following error:
+# If this call came from a _pb2.py file,
+# your generated code is out of date and must be regenerated with protoc >= 3.19.0.
+# 
+# do the following
+# pip install --upgrade protobuf==3.20.0
+
 
 # Test
 # -------------------
