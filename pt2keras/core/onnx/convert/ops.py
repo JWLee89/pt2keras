@@ -45,19 +45,19 @@ def add(node: onnx.NodeProto, computational_graph, current_inputs):
 
 @converter('Add')
 def add(node: onnx.NodeProto, computational_graph, current_inputs):
-    outputs = current_inputs + computational_graph[node.input_nodes[-1]]
+    outputs = computational_graph[node.input_nodes[0]] + computational_graph[node.input_nodes[-1]]
     return outputs
 
 
 @converter('Mul')
 def multiply(node: onnx.NodeProto, computational_graph, current_inputs):
-    outputs = current_inputs * computational_graph[node.input_nodes[-1]]
+    outputs = computational_graph[node.input_nodes[0]] * computational_graph[node.input_nodes[-1]]
     return outputs
 
 
 @converter('Div')
 def divide(node: onnx.NodeProto, computational_graph, current_inputs):
-    outputs = current_inputs / computational_graph[node.input_nodes[-1]]
+    outputs = computational_graph[node.input_nodes[0]] / computational_graph[node.input_nodes[-1]]
     return outputs
 
 

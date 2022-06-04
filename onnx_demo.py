@@ -14,6 +14,8 @@ class Model(nn.Module):
         # These can all be found using named_modules() or children()
         self.conv = nn.Sequential(
             nn.Conv2d(3, 16, (1, 1), (2, 2), bias=True),
+            nn.BatchNorm2d(16),
+            nn.SiLU(),
             nn.Conv2d(16, 32, (1, 1), (1, 1), bias=False),
         )
 
@@ -27,6 +29,7 @@ class Model(nn.Module):
         # we can retrieve these operations via .modules(), named_modules(), children(), etc.
         output = self.conv(X)
         output = (output + 6 * 3) / 3
+        output = torch.sigmoid(output)
         return output
         # return output[:, :, 2, 4]
 
@@ -39,7 +42,7 @@ def analyze(model):
 
 
 if __name__ == '__main__':
-    model = Model().eval()
+    model = Model()
 
     analyze(model)
     x = torch.ones(1, 3, 224, 224)
@@ -60,12 +63,10 @@ if __name__ == '__main__':
 
     # # Load onnx model
     onnx_model = onnx.load_model('test_model.onnx')
-    converter = Pt2Keras(onnx_model)
-    # graph = Graph(onnx_model)
-    # keras_model = graph.convert()
-    output = get_graph_output_shape(onnx_model.graph, (0, 2, 3, 1))
 
-    keras_model = converter.convert(model)
+    # Convert model
+    converter = Pt2Keras(onnx_model)
+    keras_model = converter.convert()
     #
 #    pt_output = model(x).permute(0, 2, 3, 1)
     pt_output = model(x)

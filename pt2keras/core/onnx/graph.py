@@ -128,7 +128,7 @@ class Graph:
 
         print(f'Computational graph: {self.computational_graph.keys()}')
 
-    def _convert(self, onnx_mode: onnx.ModelProto):
+    def _convert(self):
         input_shape = get_graph_input_shape(self.onnx_model.graph, (0, 2, 3, 1))[0]['shape']
         inputs = keras.Input(batch_shape=input_shape)
         outputs = inputs

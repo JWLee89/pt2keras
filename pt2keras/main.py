@@ -67,8 +67,8 @@ class Pt2Keras:
     def set_logging_level(self, logging_level):
         Pt2Keras._LOGGER.setLevel(logging_level)
 
-    def convert(self, model: nn.Module):
-        return self.graph._convert(model)
+    def convert(self):
+        return self.graph._convert()
 
     def inspect(self, model: nn.Module) -> t.Tuple[t.List, t.List]:
         """
