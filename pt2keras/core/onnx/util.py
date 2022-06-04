@@ -1,6 +1,9 @@
 import typing as t
 
-import onnx
+import tensorflow as tf
+import onnx.checker
+
+import onnx.helper
 
 
 def get_tensor_data(initializer: onnx.TensorProto) -> None:
@@ -17,6 +20,25 @@ def get_tensor_data(initializer: onnx.TensorProto) -> None:
         return initializer.double_data
     elif initializer.data_type == onnx.TensorProto.DataType.UINT64:
         return initializer.uint64_data
+    else:
+        raise NotImplementedError
+
+
+def tensor_proto_to_tf_dtype(tensor_data_type: int):
+    """
+    Given an tensor proto data type value (int), convert it to appropriate
+    tensorflow data type
+    """
+    if tensor_data_type == onnx.TensorProto.DataType.FLOAT:
+        return tf.float32
+    elif tensor_data_type == onnx.TensorProto.DataType.INT32:
+        return tf.int32
+    elif tensor_data_type == onnx.TensorProto.DataType.INT64:
+        return tf.int64
+    elif tensor_data_type == onnx.TensorProto.DataType.DOUBLE:
+        return tf.float64
+    elif tensor_data_type == onnx.TensorProto.DataType.UINT64:
+        return tf.uint64
     else:
         raise NotImplementedError
 

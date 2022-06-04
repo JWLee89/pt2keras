@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import onnx
-
 import tensorflow as tf
 
 from pt2keras.core.onnx.graph import Graph
@@ -27,7 +26,7 @@ class Model(nn.Module):
     def forward(self, X):
         # we can retrieve these operations via .modules(), named_modules(), children(), etc.
         output = self.conv(X)
-        output = (output + 6) * 3
+        output = (output + 6 * 3) / 3
         return output
         # return output[:, :, 2, 4]
 
@@ -43,7 +42,7 @@ if __name__ == '__main__':
     model = Model().eval()
 
     analyze(model)
-    x = torch.ones(1, 3, 32, 32)
+    x = torch.ones(1, 3, 224, 224)
 
     # Set the model to training mode to get the full computational graph
     # import torch._C as _C
@@ -73,8 +72,10 @@ if __name__ == '__main__':
     if len(pt_output.shape) == 4:
         pt_output = pt_output.permute(0, 2, 3, 1)
 
-    x_tf = tf.ones((1, 32, 32, 3))
+    x_tf = tf.ones((1, 224, 224, 3))
 
     print(f'pytorch: {pt_output}')
     keras_output = keras_model(x_tf)
     print(f'keras: {keras_output}')
+
+    keras_model.save('model.h5')

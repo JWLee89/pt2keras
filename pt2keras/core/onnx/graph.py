@@ -5,6 +5,7 @@ import tensorflow as tf
 
 
 from collections import OrderedDict
+from onnx.helper import printable_node
 
 from onnx import numpy_helper
 from onnx.helper import get_attribute_value
@@ -100,7 +101,8 @@ class Graph:
             key = node.name
             onnx_node_obj = OnnxNode(node)
             self.node_dict[key] = onnx_node_obj
-            print(f'NODE::::: {node}')
+            node_info = printable_node(node)
+            print(f'NODE::::: {node_info}')
 
             if node.attribute:
                 for attribute in node.attribute:
@@ -123,21 +125,12 @@ class Graph:
                 for constant_node_output in node.output:
                     if constant_node_output not in self.computational_graph:
                         self.computational_graph[constant_node_output] = onnx_node_obj.attributes['value']
-            # else:
-            #     for node_input in node.input:
-            #         if node_input not in self.computational_graph:
-            #             self.computational_graph[node_input] = onnx_node_obj.attributes
-            #
-            #     for node_output in node.output:
-            #         print(f'YEAASDASDASDSAD: {onnx_node_obj}, {node}')
-            #         if node_output not in self.computational_graph:
-            #             self.computational_graph[node_output] = onnx_node_obj.attributes
 
         print(f'Computational graph: {self.computational_graph.keys()}')
 
     def _convert(self, onnx_mode: onnx.ModelProto):
         input_shape = get_graph_input_shape(self.onnx_model.graph, (0, 2, 3, 1))[0]['shape']
-        inputs = keras.Input(shape=input_shape[1:])
+        inputs = keras.Input(batch_shape=input_shape)
         outputs = inputs
 
         has_unsupported_ops = False
@@ -173,11 +166,20 @@ class Graph:
 
     def _initialize_weights(self):
         for weight in self.onnx_model.graph.initializer:
-            print(f'WEIGHT::::: {weight}')
+            print(f'WEIGHT::::: {weight.name}')
             name = weight.name
             np_weights = numpy_helper.to_array(weight)
             if len(np_weights.shape) == len(self.source_format):
                 np_weights = np_weights.transpose([2, 3, 1, 0])
+
+            is_weight = name.endswith('weight') or name.endswith('bias')
+
+            # operations such as the division in
+            # (output + 6 * 3) / 3
+            # can be considered an initializer
+            # in this case, we need to add a constant node to the graph
+            if not is_weight:
+                self.computational_graph[name] = np_weights
 
             self.weights[name] = {
                 'weights': np_weights

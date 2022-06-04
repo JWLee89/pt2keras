@@ -1,9 +1,10 @@
-import numpy as np
 import onnx
 import typing as t
 from tensorflow import keras
+from tensorflow.keras import backend as K
 
 from .common import converter
+from ..util import tensor_proto_to_tf_dtype
 
 
 @converter('Conv')
@@ -55,10 +56,24 @@ def multiply(node: onnx.NodeProto, computational_graph, current_inputs):
 
 
 @converter('Div')
-def multiply(node: onnx.NodeProto, computational_graph, current_inputs):
-    try:
-        outputs = current_inputs / computational_graph[node.input_nodes[-1]]
-    except:
-        # Bracket divide
-        outputs = current_inputs / node.weights[0]
+def divide(node: onnx.NodeProto, computational_graph, current_inputs):
+    outputs = current_inputs / computational_graph[node.input_nodes[-1]]
+    return outputs
+
+
+@converter('Cast')
+def cast(node: onnx.NodeProto, computational_graph, current_inputs):
+    """
+    Floor divide is considered a Cast operation in onnx
+    Args:
+        node:
+        computational_graph:
+        current_inputs:
+
+    Returns:
+
+    """
+    print(f'computational_graph: {computational_graph}')
+    tf_dtype = tensor_proto_to_tf_dtype(node.attributes['to'])
+    outputs = K.cast(current_inputs, dtype=tf_dtype)
     return outputs
