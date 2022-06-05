@@ -1,8 +1,6 @@
 import logging
 import typing as t
 import onnx
-import tensorflow as tf
-
 
 from collections import OrderedDict
 from onnx.helper import printable_node
@@ -11,7 +9,7 @@ from onnx import numpy_helper
 from onnx.helper import get_attribute_value
 from tensorflow import keras
 
-from .util import get_graph_input_shape, get_graph_output_shape, generate_node_key, get_tensor_data
+from .util import get_graph_input_shape
 
 
 class Graph:
@@ -78,20 +76,11 @@ class Graph:
         """
         supported, unsupported = [], []
         for idx, node in enumerate(self.onnx_model.graph.node):
-            if node.op_type in self.converters:
+            if node.op_type in self._SUPPORTED_OPERATIONS:
                 supported.append(node.op_type)
             else:
                 unsupported.append(node.op_type)
         return supported, unsupported
-
-    def convert_op(self, op):
-        if op in Graph._SUPPORTED_OPERATIONS:
-            Graph._LOGGER.debug(f'Converting opertion: {op} ... ')
-            conversion_function = Graph._SUPPORTED_OPERATIONS[op]
-            keras_layer = conversion_function(op)
-            return keras_layer
-        else:
-            raise ValueError(f'Operation: {op} is not supported ... ')
 
     def _init_graph(self):
         """
@@ -126,8 +115,6 @@ class Graph:
                     if constant_node_output not in self.computational_graph:
                         self.computational_graph[constant_node_output] = onnx_node_obj.attributes['value']
 
-        print(f'Computational graph: {self.computational_graph.keys()}')
-
     def _convert(self):
         input_shape = get_graph_input_shape(self.onnx_model.graph, (0, 2, 3, 1))[0]['shape']
         inputs = keras.Input(batch_shape=input_shape)
@@ -158,10 +145,6 @@ class Graph:
         if has_unsupported_ops:
             raise ValueError('Failed to convert model. The following operations are currently unsupported ... '
                              f'{", ".join(unsupported_ops)}')
-
-        print(f'Graph: {self.computational_graph}')
-        print(f'Input: {inputs}')
-        print(f'Outputs: {outputs}')
 
         model = keras.Model(inputs, outputs)
         return model
@@ -194,17 +177,7 @@ class Graph:
                     node.weights.append(self.weights[input_node]['weights'])
 
         # Remove data
-        self.weights = None
-
-    def convert(self):
-        """
-        Convert the model into the desired representation format
-        """
-        model = keras.Sequential()
-        for idx, node in self.node_dict.items():
-            pass
-
-        return model
+        del self.weights
 
 
 class OnnxNode:

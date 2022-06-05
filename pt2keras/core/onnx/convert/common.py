@@ -8,7 +8,7 @@ from pt2keras.core.onnx.graph import Graph
 _LOGGER = logging.getLogger('onnx:converter')
 
 
-class DuplicateLayerConverterError(Exception):
+class DuplicateOperatorConverterError(Exception):
     pass
 
 
@@ -17,10 +17,8 @@ def converter(onnx_op: str,
     """
 
     Args:
-        target_framework:
-        onnx_op: An onnx operation that is available
+        onnx_op: An onnx operation that we wish to add a converter for
         override: If true, will override existing converter if it exists.
-
     """
     # TODO add check to see whether operator is valid
 
@@ -29,7 +27,7 @@ def converter(onnx_op: str,
                         f'Please double check to ensure that this is the desired behavior.')
 
     if not override and onnx_op in Graph._SUPPORTED_OPERATIONS:
-        raise DuplicateLayerConverterError(f'{onnx_op} converter already exists ...')
+        raise DuplicateOperatorConverterError(f'{onnx_op} converter already exists ...')
 
     def inner(wrapped_fn: t.Callable) -> t.Callable:
         """
@@ -59,10 +57,7 @@ def converter(onnx_op: str,
             # Post processing
             # -------------------
 
-            # 1. Add weights and bias
-            # _add_weights_and_bias_to_keras(pytorch_layer, keras_layer)
-
-            # 2. Perform tests to see whether the two layers (pytorch and keras)
+            # 1. Perform tests to see whether the two layers (pytorch and keras)
             # are outputting the same value and shape
             # test_layer = _test_layer if output_testing_fn is None else output_testing_fn
             #

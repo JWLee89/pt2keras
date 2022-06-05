@@ -7,11 +7,22 @@ from .common import converter
 
 
 @converter('Sigmoid')
-def add(node: onnx.NodeProto, computational_graph, current_inputs):
+def sigmoid(node: onnx.NodeProto, input_layer, *args):
     """
     Convert the add operation
     Args:
         node: The node that we wish to convert
     Returns:
     """
-    return keras.layers.Activation(activations.sigmoid)(current_inputs)
+    return keras.layers.Activation(activations.sigmoid)(input_layer)
+
+
+@converter('Relu')
+def relu(node: onnx.NodeProto, input_layer, *args):
+    """
+    Convert the add operation
+    Args:
+        node: The node that we wish to convert
+    Returns:
+    """
+    return keras.layers.Activation(activations.relu)(input_layer)
