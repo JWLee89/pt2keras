@@ -43,9 +43,10 @@ def analyze(model):
 
 if __name__ == '__main__':
     model = Model()
+    width_height = 32
 
     analyze(model)
-    x = torch.ones(1, 3, 224, 224)
+    x = torch.ones(1, 3, width_height, width_height)
 
     # Set the model to training mode to get the full computational graph
     # import torch._C as _C
@@ -73,7 +74,7 @@ if __name__ == '__main__':
     if len(pt_output.shape) == 4:
         pt_output = pt_output.permute(0, 2, 3, 1)
 
-    x_tf = tf.ones((1, 224, 224, 3))
+    x_tf = tf.ones((1, width_height, width_height, 3))
 
     print(f'pytorch: {pt_output}')
     keras_output = keras_model(x_tf)

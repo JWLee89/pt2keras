@@ -137,8 +137,6 @@ class Graph:
         unsupported_ops = set()
 
         for node_key, node in self.node_dict.items():
-            print(f'key: {node_key}, val: {node}')
-            print('-' * 50)
             op_type = node.op_type
             if op_type not in self._SUPPORTED_OPERATIONS:
                 unsupported_ops.add(op_type)
@@ -149,9 +147,13 @@ class Graph:
                 continue
 
             conversion_func = self._SUPPORTED_OPERATIONS[op_type]
+            node_inputs = []
+            for input_node in node.input_nodes:
+                if input_node in self.computational_graph:
+                    node_inputs.append(self.computational_graph[input_node])
 
-            # convert
-            outputs = conversion_func(node, self.computational_graph, outputs)
+            # convert to keras
+            outputs = conversion_func(node, outputs, self.computational_graph, *node_inputs)
 
         if has_unsupported_ops:
             raise ValueError('Failed to convert model. The following operations are currently unsupported ... '

@@ -8,7 +8,7 @@ from ..util import tensor_proto_to_tf_dtype
 
 
 @converter('Conv')
-def add(node: onnx.NodeProto, computational_graph, current_inputs):
+def add(node: onnx.NodeProto, input_layer, *node_inputs):
     """
     Convert the add operation
     Args:
@@ -28,41 +28,38 @@ def add(node: onnx.NodeProto, computational_graph, current_inputs):
         dilation_rate=attributes['dilations'],
         # Weights is of length two ['weights', 'bias']
         use_bias=len(node.weights) == 2,
-    )(current_inputs)
+    )(input_layer)
     return outputs
 
 
 @converter('Constant')
-def add(node: onnx.NodeProto, computational_graph, current_inputs):
+def constant(node: onnx.NodeProto, input_layer, *inputs):
     """
-    Convert the add operation
+    A operation that outputs the input
     Args:
         node: The node that we wish to convert
     Returns:
     """
-    return current_inputs
+    return input_layer
 
 
 @converter('Add')
-def add(node: onnx.NodeProto, computational_graph, current_inputs):
-    outputs = computational_graph[node.input_nodes[0]] + computational_graph[node.input_nodes[-1]]
-    return outputs
+def add(node: onnx.NodeProto, input_layer, lhs, rhs):
+    return lhs + rhs
 
 
 @converter('Mul')
-def multiply(node: onnx.NodeProto, computational_graph, current_inputs):
-    outputs = computational_graph[node.input_nodes[0]] * computational_graph[node.input_nodes[-1]]
-    return outputs
+def multiply(node: onnx.NodeProto, input_layer, lhs, rhs):
+    return lhs * rhs
 
 
 @converter('Div')
-def divide(node: onnx.NodeProto, computational_graph, current_inputs):
-    outputs = computational_graph[node.input_nodes[0]] / computational_graph[node.input_nodes[-1]]
-    return outputs
+def divide(node: onnx.NodeProto, input_layer, lhs, rhs):
+    return lhs / rhs
 
 
 @converter('Cast')
-def cast(node: onnx.NodeProto, computational_graph, current_inputs):
+def cast(node: onnx.NodeProto, input_layer, *args):
     """
     Floor divide is considered a Cast operation in onnx
     Args:
@@ -73,7 +70,6 @@ def cast(node: onnx.NodeProto, computational_graph, current_inputs):
     Returns:
 
     """
-    print(f'computational_graph: {computational_graph}')
     tf_dtype = tensor_proto_to_tf_dtype(node.attributes['to'])
-    outputs = K.cast(current_inputs, dtype=tf_dtype)
+    outputs = K.cast(input_layer, dtype=tf_dtype)
     return outputs

@@ -41,7 +41,7 @@ def converter(onnx_op: str,
 
         """
         @wraps(wrapped_fn)
-        def created_converter(onnx_node, computational_graph, *args, **kwargs) -> t.Any:
+        def created_converter(onnx_node, output_layer, computational_graph, *args, **kwargs) -> t.Any:
             """
             Given a pytorch operation or layer, directly port it to keras
             Returns:
@@ -49,13 +49,12 @@ def converter(onnx_op: str,
             """
 
             # Should add all available arguments and so on
-            keras_layer = wrapped_fn(onnx_node, computational_graph, *args, **kwargs)
+            keras_layer = wrapped_fn(onnx_node, output_layer, *args, **kwargs)
 
             # build computational graph
             for output_node_name in onnx_node.output_nodes:
                 if output_node_name not in computational_graph:
                     computational_graph[output_node_name] = keras_layer
-
 
             # Post processing
             # -------------------
