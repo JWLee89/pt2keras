@@ -1,5 +1,4 @@
 import onnx
-import typing as t
 from tensorflow import keras
 from tensorflow.keras import activations
 

@@ -2,7 +2,6 @@ import logging
 import os
 import typing as t
 
-import onnx
 import torch.nn as nn
 
 
@@ -14,14 +13,14 @@ class Pt2Keras:
     }
     _LOGGER = logging.getLogger()
 
-    def __init__(self, model):
+    def __init__(self, model, input_shape: t.Tuple):
         self.graph = None
+        self.input_shape = input_shape
         self.model = model
         # check model type
         if isinstance(self.model, nn.Module):
-            self.intermediate_rep = Pt2Keras._AVAILABLE_IR[-1]
-        elif isinstance(self.model, onnx.ModelProto):
             self.intermediate_rep = Pt2Keras._AVAILABLE_IR[0]
+            self.model.eval()
         else:
             raise ValueError(f'Invalid model type. '
                              f'Please pass in one of the following values: {Pt2Keras._AVAILABLE_IR}')
@@ -54,7 +53,7 @@ class Pt2Keras:
             from pt2keras.core.pytorch.graph import Graph
         else:
             raise ValueError('Invalid property')
-        self.graph = Graph(self.model)
+        self.graph = Graph(self.model, self.input_shape)
         self._intermediate_rep = value
 
     @staticmethod

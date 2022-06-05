@@ -1,10 +1,8 @@
 import torch
 import torch.nn as nn
-import onnx
 import tensorflow as tf
+from torchvision.models.resnet import resnet18
 
-from pt2keras.core.onnx.graph import Graph
-from pt2keras.core.onnx.util import get_graph_output_shape
 from pt2keras.main import Pt2Keras
 
 
@@ -13,10 +11,11 @@ class Model(nn.Module):
         super().__init__()
         # These can all be found using named_modules() or children()
         self.conv = nn.Sequential(
-            nn.Conv2d(3, 16, (1, 1), (2, 2), bias=True),
-            nn.BatchNorm2d(16),
+            nn.Conv2d(3, 32, (3, 3), stride=(2, 2), padding=(1, 1), groups=1, bias=True),
             nn.SiLU(),
-            nn.Conv2d(16, 32, (1, 1), (1, 1), bias=False),
+            nn.Conv2d(32, 32, (3, 3), stride=(1, 1), padding=(1, 1), groups=32, dilation=(1, 1),  bias=True),
+            nn.SiLU(),
+            # nn.ConvTranspose2d(32, 64, (3, 3), (2, 2), padding=(1, 1))
         )
 
         # self.conv = nn.Sequential(
@@ -28,45 +27,22 @@ class Model(nn.Module):
     def forward(self, X):
         # we can retrieve these operations via .modules(), named_modules(), children(), etc.
         output = self.conv(X)
-        output = (output + 6 * 3) / 3
-        output = torch.sigmoid(output)
         return output
         # return output[:, :, 2, 4]
 
 
-def analyze(model):
-    for name, module in model.named_children():
-        if not list(module.children()) == []:  # if not leaf node, ski[
-            print(f'has children: {name}')
-        print(f'Name: {name}, module: {module}')
-
-
 if __name__ == '__main__':
-    model = Model()
+    model = resnet18().eval()
+    # model = Model()
     width_height = 32
 
-    analyze(model)
     x = torch.ones(1, 3, width_height, width_height)
 
     # Set the model to training mode to get the full computational graph
     # import torch._C as _C
     # TrainingMode = _C._onnx.TrainingMode
-
-    torch.onnx.export(model,
-                      x,
-                      'test_model.onnx',
-                      do_constant_folding=True,  # whether to execute constant folding for optimization
-                      verbose=False,
-                      # training=TrainingMode.TRAINING,
-                      export_params=True,
-                      input_names=['input_0'],
-                      output_names=['output_0'])
-
-    # # Load onnx model
-    onnx_model = onnx.load_model('test_model.onnx')
-
     # Convert model
-    converter = Pt2Keras(onnx_model)
+    converter = Pt2Keras(model, x.shape)
     keras_model = converter.convert()
     #
 #    pt_output = model(x).permute(0, 2, 3, 1)
@@ -76,8 +52,8 @@ if __name__ == '__main__':
 
     x_tf = tf.ones((1, width_height, width_height, 3))
 
-    print(f'pytorch: {pt_output}')
+    print(f'pytorch: {pt_output.shape}, {pt_output}')
     keras_output = keras_model(x_tf)
-    print(f'keras: {keras_output}')
+    print(f'keras: {keras_output.shape}, {keras_output}')
 
     keras_model.save('model.h5')

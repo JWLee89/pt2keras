@@ -1,15 +1,19 @@
 import logging
+import os.path
 import typing as t
 import onnx
+import torch.nn as nn
 
 from collections import OrderedDict
+
+import torch.onnx
 from onnx.helper import printable_node
 
 from onnx import numpy_helper
 from onnx.helper import get_attribute_value
 from tensorflow import keras
 
-from .util import get_graph_input_shape
+from .util import get_graph_input_shape, test_model_output
 
 
 class Graph:
@@ -22,7 +26,8 @@ class Graph:
     Keras format
     """
     def __init__(self,
-                 onnx_model: onnx.ModelProto,
+                 pytorch_model: nn.Module,
+                 input_shape: t.Tuple,
                  source_format: t.Tuple = ('B', 'C', 'H', 'W'),
                  target_format: t.Tuple = ('B', 'H', 'W', 'C')):
         """
@@ -35,14 +40,39 @@ class Graph:
         have at most, 4 dimensional inputs
 
         Args:
-            onnx_model: The target onnx model to convert
             source_format: The source input format
             target_format:
         """
-        self.onnx_model = onnx_model
+        self.pytorch_model = pytorch_model
+        self.pytorch_input_shape = input_shape
         self.source_format = source_format
         self.target_format = target_format
-        onnx.checker.check_model(onnx_model)
+
+        dummy_input = torch.randn(input_shape)
+        output = self.pytorch_model(dummy_input)
+        output_names = []
+        if isinstance(output, (t.Tuple, t.List)):
+            for i in range(len(output)):
+                output_names.append(f'output_{i}')
+        else:
+            output_names.append('output_0')
+
+        hash_str = f'__{hash(pytorch_model)}__.onnx'
+        torch.onnx.export(self.pytorch_model,
+                          dummy_input,
+                          hash_str,
+                          do_constant_folding=True,  # whether to execute constant folding for optimization
+                          verbose=False,
+                          # training=TrainingMode.TRAINING,
+                          export_params=True,
+                          input_names=['input_0'],
+                          output_names=output_names)
+
+        # Check model
+        self.onnx_model = onnx.load(hash_str)
+        onnx.checker.check_model(self.onnx_model)
+        if os.path.exists(hash_str):
+            os.remove(hash_str)
 
         self.weights = OrderedDict()
         self.node_dict = OrderedDict()
@@ -123,6 +153,7 @@ class Graph:
         has_unsupported_ops = False
         unsupported_ops = set()
 
+        # Convert the model
         for node_key, node in self.node_dict.items():
             op_type = node.op_type
             if op_type not in self._SUPPORTED_OPERATIONS:
@@ -140,13 +171,16 @@ class Graph:
                     node_inputs.append(self.computational_graph[input_node])
 
             # convert to keras
+            print(f'Attempting to convert node: {node}')
             outputs = conversion_func(node, outputs, self.computational_graph, *node_inputs)
+            print(f'Successfully converted: {node} to {outputs}')
 
         if has_unsupported_ops:
             raise ValueError('Failed to convert model. The following operations are currently unsupported ... '
                              f'{", ".join(unsupported_ops)}')
 
         model = keras.Model(inputs, outputs)
+        test_model_output(self.pytorch_model, model, self.pytorch_input_shape, input_shape)
         return model
 
     def _initialize_weights(self):
