@@ -14,12 +14,18 @@ def add(node: onnx.NodeProto, input_layer, *node_inputs):
     Returns:
 
     """
+    weights, bias = None, None
+    weights = node.weights[0]
+    bias = None if len(node.weights) != 2 else node.weights[1]
+
+    print(f'WEIGHTSSDSADSAD: {weights.shape}')
+
     attributes: t.Dict = node.attributes
-    weights_shape = node.weights[0].shape
-    filter_count = weights_shape[-1]
-
+    has_bias = bias is not None
+    n_groups = attributes['group'] if 'group' in attributes else 1
     pads = attributes['pads'] if 'pads' in attributes else [0, 0, 0]
-
+    dilation = attributes['dilations'][0] if 'dilations' in attributes else 1
+    strides = attributes['strides'] if 'strides' in attributes else [1, 1, 1]
     padding = None
     if len(pads) == 2 and (pads[0] > 0 or pads[1] > 0):
         padding = (pads[0], pads[1])
@@ -34,16 +40,85 @@ def add(node: onnx.NodeProto, input_layer, *node_inputs):
         )
         input_layer = padding_layer(input_layer)
 
-    outputs = keras.layers.Conv2D(
-        filter_count,  # filters
-        attributes['kernel_shape'],  # Kernel size
-        strides=attributes['strides'],
-        groups=attributes['group'],
-        weights=node.weights,
-        dilation_rate=attributes['dilations'],
-        # Weights is of length two ['weights', 'bias']
-        use_bias=len(node.weights) == 2,
-    )(input_layer)
+    weights_shape = weights.shape
+    print(f'weight shape: {weights_shape}')
+    height, width, channels_per_group, out_channels = weights_shape
+    print(f'Weight shape: {weights_shape}, input_shape: {input_layer.shape} '
+          f'Height: {height}, width: {width}, channel_per_group: {channels_per_group}, out_channels: {out_channels}')
+    in_channels = channels_per_group * n_groups
+
+    if n_groups == in_channels and n_groups != 1:
+        print('Number of groups is equal to input channels, use DepthWise convolution')
+        weights = weights.transpose(0, 1, 3, 2)
+
+        conv = keras.layers.DepthwiseConv2D(
+            kernel_size=(height, width),
+            strides=(strides[0], strides[1]),
+            padding='valid',
+            use_bias=has_bias,
+            activation=None,
+            depth_multiplier=1,
+            weights=[weights, bias] if has_bias else [weights],
+            dilation_rate=dilation,
+            bias_initializer='zeros', kernel_initializer='zeros',
+            data_format='channels_last',
+        )
+        outputs = conv(input_layer)
+
+    elif n_groups != 1:
+        print('Number of groups more than 1, but less than number of in_channel, use group convolution')
+
+        # Example from https://kratzert.github.io/2017/02/24/finetuning-alexnet-with-tensorflow.html
+        def target_layer(x, groups=n_groups, stride_y=strides[0], stride_x=strides[1]):
+            import tensorflow as tf
+            from tensorflow.keras import backend as K
+
+            def convolve_lambda_biased(i, k, b):
+                import tensorflow as tf
+                conv = tf.nn.conv2d(i, k, strides=[1, stride_y, stride_x, 1], dilations=[1, dilation, dilation, 1],
+                                    padding='VALID')
+                return tf.nn.bias_add(conv, b)
+
+            def convolve_lambda(i, k):
+                import tensorflow as tf
+                return tf.nn.conv2d(i, k, strides=[1, stride_y, stride_x, 1], dilations=[1, dilation, dilation, 1],
+                                    padding='VALID')
+
+            input_groups = tf.split(axis=3, num_or_size_splits=groups, value=x)
+            weight_groups = tf.split(axis=3, num_or_size_splits=groups, value=weights_shape)
+            if has_bias:
+                bias_groups = tf.split(axis=0, num_or_size_splits=groups, value=bias)
+                output_groups = [convolve_lambda_biased(i, k, b) for i, k, b in
+                                 zip(input_groups, weight_groups, bias_groups)]
+            else:
+                output_groups = [convolve_lambda(i, k) for i, k in zip(input_groups, weight_groups)]
+
+            layer = tf.concat(axis=3, values=output_groups)
+
+            return layer
+
+        lambda_layer = keras.layers.Lambda(target_layer)
+        outputs = lambda_layer(input_layer)
+
+    else:
+        print(f'normal conv~~~~~~~~~~~~~~~~~~~~, weight shape: {node.weights[0].shape}')
+        print(f'Node: {node}, out_channels: {out_channels},'
+              f' strides: {strides}, kernel size: {(height, width)}')
+        outputs = keras.layers.Conv2D(
+            filters=out_channels,
+            kernel_size=(height, width),  # filters
+            strides=(strides[0], strides[1]),
+            padding='valid',
+            dilation_rate=dilation,
+            use_bias=has_bias,
+            weights=[weights, bias] if has_bias else [weights],
+            bias_initializer='zeros',
+            kernel_initializer='zeros',
+            activation=None,
+            data_format='channels_last',
+        )(input_layer)
+    print(f'Output shape: {outputs.shape}')
+
     return outputs
 
 

@@ -77,8 +77,6 @@ class Graph:
         self.weights = OrderedDict()
         self.node_dict = OrderedDict()
 
-        self.transpose_matrix = self._get_transpose_matrix()
-
         # The computational graph value we are building up
         self.computational_graph = {}
 
@@ -90,13 +88,6 @@ class Graph:
 
         # 2. Initialize weight vectors from onnx graph
         self._initialize_weights()
-
-    def _get_transpose_matrix(self):
-        if len(self.source_format) != len(self.target_format):
-            raise ValueError('The dimensions of the source and target format must be equal')
-        # for now, just hardcode
-        transpose_matrix = [0, 2, 3, 1]
-        return transpose_matrix
 
     def inspect(self) -> t.Tuple[t.List, t.List]:
         """
@@ -170,8 +161,10 @@ class Graph:
                 if input_node in self.computational_graph:
                     node_inputs.append(self.computational_graph[input_node])
 
+
             # convert to keras
             print(f'Attempting to convert node: {node}')
+            print(f'Computational graph: {self.computational_graph.keys()}')
             outputs = conversion_func(node, outputs, self.computational_graph, *node_inputs)
             print(f'Successfully converted: {node} to {outputs}')
 
@@ -185,21 +178,23 @@ class Graph:
 
     def _initialize_weights(self):
         for weight in self.onnx_model.graph.initializer:
-            print(f'WEIGHT::::: {weight.name}')
             name = weight.name
             np_weights = numpy_helper.to_array(weight)
             if len(np_weights.shape) == len(self.source_format):
+                print(f'transposing weight: {weight.name}')
+                # H,W,IC,OC
                 np_weights = np_weights.transpose([2, 3, 1, 0])
+                print(f'np_weights: {np_weights.shape}')
 
-            is_weight = name.endswith('weight') or name.endswith('bias')
+
+            # is_weight = name.endswith('weight') or name.endswith('bias')
 
             # operations such as the division in
             # (output + 6 * 3) / 3
             # can be considered an initializer
             # in this case, we need to add a constant node to the graph
-            if not is_weight:
-                self.computational_graph[name] = np_weights
-
+            # if not is_weight:
+            self.computational_graph[name] = np_weights
             self.weights[name] = {
                 'weights': np_weights
             }
@@ -212,6 +207,8 @@ class Graph:
 
         # Remove data
         del self.weights
+
+        print(f'Computational grpah: {self.computational_graph.keys()}')
 
 
 class OnnxNode:

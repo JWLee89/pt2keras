@@ -1,5 +1,6 @@
 import onnx
 from tensorflow import keras
+from tensorflow.keras import backend as K
 
 from .common import converter
 
@@ -7,18 +8,24 @@ from .common import converter
 @converter('GlobalAveragePool')
 def global_average_pool(node: onnx.NodeProto, input_layer, input_tensor):
     # axis = node.attributes['axis']
-    global_pool = keras.layers.GlobalAveragePooling2D()
-    output = global_pool(input_layer)
+    print(f'attributes global average pooling: {node.attributes}')
+    global_pool = keras.layers.GlobalAveragePooling2D(data_format='channels_last')
+    input_layer = global_pool(input_layer)
 
     def target_layer(x):
+        # need to import inside lambda function to compile keras
+        from tensorflow import keras
         return keras.backend.expand_dims(x)
 
     lambda_layer1 = keras.layers.Lambda(target_layer)
     lambda_layer2 = keras.layers.Lambda(target_layer)
 
-    output = lambda_layer1(output)  # double expand dims
-    output = lambda_layer2(output)
-    print(f'input shape: {input_tensor.shape}, output shape: {output.shape}')
+    input_layer = lambda_layer1(input_layer)  # double expand dims
+    output = lambda_layer2(input_layer)
+
+    # need to permute to convert fully to keras
+    # output = K.permute_dimensions(output, (0, 2, 3, 1))
+    print(f'Output shape: {output.shape}')
     return output
 
 
