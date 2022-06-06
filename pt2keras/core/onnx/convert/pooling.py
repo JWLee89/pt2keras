@@ -24,7 +24,7 @@ def global_average_pool(node: onnx.NodeProto, input_layer, input_tensor):
     output = lambda_layer2(input_layer)
 
     # need to permute to convert fully to keras
-    # output = K.permute_dimensions(output, (0, 2, 3, 1))
+    output = K.permute_dimensions(output, (0, 2, 3, 1))
     print(f'Output shape: {output.shape}')
     return output
 
