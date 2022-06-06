@@ -29,7 +29,7 @@ def test_model_output(pytorch_model: torch.nn.Module,
                                                   f'Got pt: {output_pt.shape}, Keras: {output_keras.shape}'
 
     # Average diff over all axis
-    average_diff = np.mean(np.mean([output_pt, output_keras]))
+    average_diff = np.mean(output_pt - output_keras)
 
     output_is_approximately_equal = np.allclose(output_pt, output_keras, atol=atol)
     assert output_is_approximately_equal, f'PyTorch output and Keras output is different. ' \

@@ -32,6 +32,7 @@ class DummyModel(nn.Module):
         )
 
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.linear = nn.Linear(64, 10)
 
         # self.conv = nn.Sequential(
         #     nn.Conv2d(3, 16, (1, 1), (2, 2), bias=True),
@@ -43,7 +44,10 @@ class DummyModel(nn.Module):
         # we can retrieve these operations via .modules(), named_modules(), children(), etc.
         output = self.conv(X)
         new_path = self.avg_pool(output)
-        return new_path
+        flat = new_path.view(-1, 64)
+        output = self.linear(flat)
+        # flat = torch.flatten(new_path)
+        return torch.relu(output)
         # return output[:, :, 2, 4]
 
 
@@ -52,7 +56,7 @@ if __name__ == '__main__':
     from copy import deepcopy
     import numpy as np
     # Test pt2keras on EfficientNet_b0
-    model = efficientnet_b0(pretrained=True).eval()
+    model = DummyModel().eval()
     height_width = 32
 
     # Generate dummy inputs
@@ -75,17 +79,17 @@ if __name__ == '__main__':
     keras_output = keras_model(x_keras).numpy()
     # Mean average diff over all axis
 
-    average_diff = np.mean(np.mean([pt_output, keras_output]))
+    average_diff = np.mean(pt_output - keras_output)
     print(f'pytorch: {pt_output.shape}')
     print(f'keras: {keras_output.shape}')
     # The differences will be precision errors from multiplication / division
     print(f'Mean average diff: {average_diff}')
 
-    output_is_approximately_equal = np.allclose(pt_output, keras_output, atol=1e-4)
-    assert output_is_approximately_equal, f'PyTorch output and Keras output is different. ' \
-                                          f'Mean difference: {average_diff}'
+    # output_is_approximately_equal = np.allclose(pt_output, keras_output, atol=1e-4)
+    # assert output_is_approximately_equal, f'PyTorch output and Keras output is different. ' \
+    #                                       f'Mean difference: {average_diff}'
 
     # See for yourself
-    # print(keras_output)
-    # print(pt_output)
+    print(keras_output)
+    print(pt_output)
     keras_model.save('model.h5')
