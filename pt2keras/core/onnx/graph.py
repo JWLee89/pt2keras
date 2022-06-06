@@ -79,7 +79,6 @@ class Graph:
 
         self.weights = OrderedDict()
         self.node_dict = OrderedDict()
-
         # The computational graph value we are building up
         self.computational_graph = {}
 
@@ -185,7 +184,7 @@ class Graph:
                     node_inputs.append(self.computational_graph[input_node])
 
             # Convert to keras
-            outputs = conversion_func(node, outputs, self.computational_graph, *node_inputs)
+            outputs = conversion_func(node, outputs, self.computational_graph, self.node_dict, *node_inputs)
             Graph._LOGGER.info(f'Successfully converted: {node}')
             Graph._LOGGER.info(f'Outputs: {node}')
 
@@ -204,10 +203,10 @@ class Graph:
         for weight in self.onnx_model.graph.initializer:
             name = weight.name
             np_weights = numpy_helper.to_array(weight)
-            if len(np_weights.shape) == len(self.source_format):
-                Graph._LOGGER.info(f'Transposing weights: {name}')
-                # H,W,IC,OC
-                np_weights = np_weights.transpose([2, 3, 1, 0])
+            # if len(np_weights.shape) == len(self.source_format):
+            #     Graph._LOGGER.info(f'Transposing weights: {name}')
+            #     # H,W,IC,OC
+            #     np_weights = np_weights.transpose([2, 3, 1, 0])
 
             # Note tht we can also check whether the initialize is actually a weight
             # or a constant by checking what the name endswith

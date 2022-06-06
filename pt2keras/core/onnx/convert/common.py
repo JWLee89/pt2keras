@@ -1,9 +1,12 @@
 import logging
 import typing as t
-
 from functools import wraps
 
-from pt2keras.core.onnx.graph import Graph
+import numpy as np
+from tensorflow import keras
+from tensorflow.keras import Model
+
+from pt2keras.core.onnx.graph import Graph, OnnxNode
 
 _LOGGER = logging.getLogger('onnx:converter')
 
@@ -12,13 +15,64 @@ class DuplicateOperatorConverterError(Exception):
     pass
 
 
-def converter(onnx_op: str,
-              override: bool = False):
+def _test_operation(node: OnnxNode, node_dict, input_keras_layer, output_keras_layer):
     """
+    The default testing function. After each layer / operation is made,
+    the test will be run to ensure that the output from the onnx model
+    is identical to the converted Keras model.
+    Args:
+        node: A class representation of the onnx node.
+        input_keras_layer: The input keras layer
+        output_keras_layer: The output of this keras layer must be tested.
 
+    Returns:
+
+    """
+    if output_keras_layer is None:
+        if node.op_type == 'Constant':
+            _LOGGER.debug(f'Skipping test for Constant node: {node}')
+        else:
+            _LOGGER.warning(f'Output keras layer not available for: {node}. '
+                            f'Skipping test.')
+        return
+
+    input_nodes = []
+    for input_node_name in node.input_nodes:
+        if input_node_name in node_dict:
+            input_nodes.append(node_dict[input_node_name])
+        else:
+            # Network input node:
+            print(f'We are dealing with network input. Name: {input_node_name}, : {input_keras_layer}')
+
+    print(f'Onnx node: {node}')
+    input_data = np.random.randn(*input_keras_layer.shape)
+    keras_output = output_keras_layer(input_data)
+
+    print(f'Inference: {keras_output.shape}')
+
+
+
+    # Create intermediate computational graph for inference
+    # node = helper.make_node(node.op_type, inputs=input_nodes, outputs=['yee'],
+    #                         value=helper.make_tensor(name='test_temp',
+    #                         data_type = tp.FLOAT,dims = training_results[‘intercept’].shape,
+    #                         vals = training_results[‘intercept’].flatten())
+
+
+
+def converter(onnx_op: str,
+              override: bool = False,
+              op_testing_fn: t.Callable = None):
+    """
     Args:
         onnx_op: An onnx operation that we wish to add a converter for
+
+        Optional args:
+
         override: If true, will override existing converter if it exists.
+        op_testing_fn: If included, it will override the default testing function.
+        This is useful if you wish to construct custom tests that best suit specific
+        use cases.
     """
     # TODO add check to see whether operator is valid
 
@@ -39,7 +93,7 @@ def converter(onnx_op: str,
 
         """
         @wraps(wrapped_fn)
-        def created_converter(onnx_node, output_layer, computational_graph, *args, **kwargs) -> t.Any:
+        def created_converter(onnx_node, input_layer, computational_graph, node_dict: t.Dict, *args, **kwargs) -> t.Any:
             """
             Given a pytorch operation or layer, directly port it to keras
             Returns:
@@ -47,29 +101,35 @@ def converter(onnx_op: str,
             """
 
             # Should add all available arguments and so on
-            keras_layer = wrapped_fn(onnx_node, output_layer, *args, **kwargs)
+            _LOGGER.debug(f'Converting: {onnx_op}')
+            output = wrapped_fn(onnx_node, input_layer, *args, **kwargs)
 
-            # build computational graph
+            # Layer not outputted. Fill as None
+            # If keras layer is not made, we will not be doing any test
+            if not isinstance(output, t.Tuple):
+                keras_tensor = output
+                keras_layer = None
+            elif len(output) == 3:
+                keras_tensor, input_layer, keras_layer = output
+            elif len(output) == 2:
+                keras_tensor, keras_layer = output
+            else:
+                raise ValueError(f'Invalid output format for converter: "{onnx_node.op_type}"')
+
+            # build computational graph during conversion and forward pass
             for output_node_name in onnx_node.output_nodes:
                 if output_node_name not in computational_graph:
-                    computational_graph[output_node_name] = keras_layer
+                    computational_graph[output_node_name] = keras_tensor
+                    print(f'keras layer: {keras_tensor}')
 
             # Post processing
             # -------------------
 
             # 1. Perform tests to see whether the two layers (pytorch and keras)
             # are outputting the same value and shape
-            # test_layer = _test_layer if output_testing_fn is None else output_testing_fn
-            #
-            # # try testing. If it fails, try adding custom test via decorator
-            # try:
-            #     test_layer(pytorch_layer, keras_layer, *args, **kwargs)
-            # except:
-            #     # If passed in test layers, we will skip the test.
-            #     # Instead, a warning will be issued.
-            #     _LOGGER.warning(f'Test failed for layer: {pytorch_module}. Skipping ... ')
-
-            return keras_layer
+            test_layer: t.Callable = _test_operation if op_testing_fn is None else op_testing_fn
+            test_layer(onnx_node, node_dict, input_layer, keras_layer)
+            return keras_tensor
 
         if not override:
             _LOGGER.info(f'Registering onnx node converter: {onnx_op}')

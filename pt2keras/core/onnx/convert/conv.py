@@ -45,6 +45,7 @@ def conv(node: OnnxNode, input_layer, *node_inputs):
         )
         input_layer = padding_layer(input_layer)
 
+    weights = weights.transpose(2, 3, 1, 0)
     weights_shape = weights.shape
     height, width, channels_per_group, out_channels = weights_shape
     in_channels = channels_per_group * n_groups
@@ -53,7 +54,7 @@ def conv(node: OnnxNode, input_layer, *node_inputs):
         logger.info('Number of groups is equal to input channels, use DepthWise convolution')
         weights = weights.transpose(0, 1, 3, 2)
 
-        conv = keras.layers.DepthwiseConv2D(
+        output_layer = keras.layers.DepthwiseConv2D(
             kernel_size=(height, width),
             strides=(strides[0], strides[1]),
             padding='valid',
@@ -62,10 +63,10 @@ def conv(node: OnnxNode, input_layer, *node_inputs):
             depth_multiplier=1,
             weights=[weights, bias] if has_bias else [weights],
             dilation_rate=dilation,
-            bias_initializer='zeros', kernel_initializer='zeros',
-            data_format='channels_last',
+            bias_initializer='zeros',
+            kernel_initializer='zeros',
         )
-        outputs = conv(input_layer)
+        outputs = output_layer(input_layer)
 
     elif n_groups != 1:
         logger.info('Number of groups more than 1, but less than number of in_channel, use group convolution')
@@ -99,12 +100,12 @@ def conv(node: OnnxNode, input_layer, *node_inputs):
 
             return layer
 
-        lambda_layer = keras.layers.Lambda(target_layer)
-        outputs = lambda_layer(input_layer)
+        output_layer = keras.layers.Lambda(target_layer)
+        outputs = output_layer(input_layer)
 
     else:
         logger.info(f'normal conv~~~~~~~~~~~~~~~~~~~~, weight shape: {node.weights[0].shape}')
-        outputs = keras.layers.Conv2D(
+        output_layer = keras.layers.Conv2D(
             filters=out_channels,
             kernel_size=(height, width),  # filters
             strides=(strides[0], strides[1]),
@@ -115,10 +116,10 @@ def conv(node: OnnxNode, input_layer, *node_inputs):
             bias_initializer='zeros',
             kernel_initializer='zeros',
             activation=None,
-            data_format='channels_last',
-        )(input_layer)
+        )
+        outputs = output_layer(input_layer)
 
-    return outputs
+    return outputs, input_layer, output_layer
 
 
 @converter('ConvTranspose')

@@ -73,3 +73,7 @@ if __name__ == '__main__':
     assert output_is_approximately_equal, f'PyTorch output and Keras output is different. ' \
                                           f'Mean difference: {average_diff}'
 ```
+
+## License
+
+This software is covered by the MIT license.

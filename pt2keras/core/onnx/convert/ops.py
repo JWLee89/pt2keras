@@ -19,7 +19,7 @@ def constant(node: OnnxNode, input_layer, *inputs):
         node: The node that we wish to convert
     Returns:
     """
-    return input_layer
+    return input_layer, None
 
 
 @converter('Add')
@@ -48,7 +48,7 @@ def add(node: OnnxNode, input_layer, lhs, rhs):
         lambda_layer = keras.layers.Lambda(target_layer)
         output = lambda_layer([lhs, rhs])
 
-    return output
+    return output, None
 
 
 @converter('Mul')
@@ -69,15 +69,16 @@ def multiply(node: OnnxNode, input_layer, lhs, rhs):
             )
             return layer
 
-        lambda_layer = keras.layers.Lambda(target_layer)
-        output = lambda_layer([lhs, rhs])
-    return output
+        mul = keras.layers.Lambda(target_layer)
+        output = mul([lhs, rhs])
+    return output, None
 
 
 @converter('Div')
 def divide(node: OnnxNode, input_layer, lhs, rhs):
     logger = logging.getLogger('ops::Div')
     try:
+        output_layer = None
         output = lhs / rhs
     except (IndexError, ValueError):
         logger.debug('Failed to use divide. Fallback to TF Lmbda')
@@ -91,9 +92,9 @@ def divide(node: OnnxNode, input_layer, lhs, rhs):
                 x[1]
             )
             return layer
-        lambda_layer = keras.layers.Lambda(target_layer)
-        output = lambda_layer([lhs, rhs])
-    return output
+        output_layer = keras.layers.Lambda(target_layer)
+        output = output_layer([lhs, rhs])
+    return output, output_layer
 
 
 @converter('Cast')
@@ -104,7 +105,7 @@ def cast(node: OnnxNode, input_layer, *args):
     """
     tf_dtype = tensor_proto_to_tf_dtype(node.attributes['to'])
     outputs = K.cast(input_layer, dtype=tf_dtype)
-    return outputs
+    return outputs, None
 
 
 @converter('Gather')
@@ -122,18 +123,18 @@ def gather(node: OnnxNode, input_layer, input_tensor, indices):
         mapped_axis = axis_mapper[axis]
     else:
         mapped_axis = axis
-    return tf.gather(input_tensor, indices=indices, axis=mapped_axis)
+    return tf.gather(input_tensor, indices=indices, axis=mapped_axis), None
 
 
 @converter('Dropout')
 def dropout(node: OnnxNode, input_layer, input_tensor):
     # TODO: Dropout removed during evaluation phase
-    return keras.layers.Dropout()(input_layer)
+    return keras.layers.Dropout()(input_layer), keras.layers.Dropout()
 
 
 @converter('Flatten')
 def flatten(node: OnnxNode, input_layer, input_tensor):
-    return keras.layers.Flatten()(input_layer)
+    return keras.layers.Flatten()(input_layer), keras.layers.Flatten()
 
 
 @converter('Gemm')
@@ -178,4 +179,4 @@ def gemm(node: OnnxNode, input_layer, *input_tensor):
     else:
         output = keras.layers.Multiply()(input_layer, keras_weights[0])
 
-    return output
+    return output, None

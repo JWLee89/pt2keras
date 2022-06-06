@@ -9,9 +9,8 @@ from ..graph import OnnxNode
 @converter('GlobalAveragePool')
 def global_average_pool(node: OnnxNode, input_layer, input_tensor):
     # axis = node.attributes['axis']
-    print(f'attributes global average pooling: {node.attributes}')
     global_pool = keras.layers.GlobalAveragePooling2D(data_format='channels_last')
-    input_layer = global_pool(input_layer)
+    output = global_pool(input_layer)
 
     def target_layer(x):
         # need to import inside lambda function to compile keras
@@ -21,13 +20,12 @@ def global_average_pool(node: OnnxNode, input_layer, input_tensor):
     lambda_layer1 = keras.layers.Lambda(target_layer)
     lambda_layer2 = keras.layers.Lambda(target_layer)
 
-    input_layer = lambda_layer1(input_layer)  # double expand dims
-    output = lambda_layer2(input_layer)
+    output = lambda_layer1(output)  # double expand dims
+    output = lambda_layer2(output)
 
     # need to permute to convert fully to keras
     output = K.permute_dimensions(output, (0, 2, 3, 1))
-    print(f'Output shape: {output.shape}')
-    return output
+    return output, None
 
 
 @converter('MaxPool')
