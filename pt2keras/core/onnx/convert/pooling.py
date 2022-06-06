@@ -3,10 +3,11 @@ from tensorflow import keras
 from tensorflow.keras import backend as K
 
 from .common import converter
+from ..graph import OnnxNode
 
 
 @converter('GlobalAveragePool')
-def global_average_pool(node: onnx.NodeProto, input_layer, input_tensor):
+def global_average_pool(node: OnnxNode, input_layer, input_tensor):
     # axis = node.attributes['axis']
     print(f'attributes global average pooling: {node.attributes}')
     global_pool = keras.layers.GlobalAveragePooling2D(data_format='channels_last')
@@ -30,7 +31,7 @@ def global_average_pool(node: onnx.NodeProto, input_layer, input_tensor):
 
 
 @converter('MaxPool')
-def max_pool(node: onnx.NodeProto, input_layer, input_tensor):
+def max_pool(node: OnnxNode, input_layer, input_tensor):
 
     attributes = node.attributes
     kernel_shape = attributes['kernel_shape']

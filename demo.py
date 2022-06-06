@@ -1,3 +1,5 @@
+import logging
+
 import torch
 import torch.nn as nn
 import tensorflow as tf
@@ -9,7 +11,7 @@ class Block(nn.Module):
         super().__init__()
 
 
-class Model(nn.Module):
+class DummyModel(nn.Module):
     def __init__(self):
         super().__init__()
         # These can all be found using named_modules() or children()
@@ -41,9 +43,6 @@ class Model(nn.Module):
         # we can retrieve these operations via .modules(), named_modules(), children(), etc.
         output = self.conv(X)
         new_path = self.avg_pool(output)
-
-        print(f'new path shape: {new_path.shape}, old output: {output.shape}')
-
         return new_path
         # return output[:, :, 2, 4]
 
@@ -65,6 +64,9 @@ if __name__ == '__main__':
 
     # Convert the model
     converter = Pt2Keras(model, x_pt.shape)
+    # Set to debug to read information
+    converter.set_logging_level(logging.DEBUG)
+
     keras_model = converter.convert()
 
     # Make PT model the same input dimension as Keras
@@ -86,3 +88,4 @@ if __name__ == '__main__':
     # See for yourself
     # print(keras_output)
     # print(pt_output)
+    keras_model.save('model.h5')

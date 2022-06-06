@@ -1,24 +1,24 @@
-import onnx
+import logging
 import typing as t
 from tensorflow import keras
 
 from .common import converter
+from ..graph import OnnxNode
 
 
 @converter('Conv')
-def add(node: onnx.NodeProto, input_layer, *node_inputs):
+def conv(node: OnnxNode, input_layer, *node_inputs):
     """
-    Convert the add operation
+    Convert the conv operation.
+    @credit to onnx2keras where I got the implementation details from:
+    Link: https://github.com/gmalivenko/onnx2keras
     Args:
         node: The node that we wish to convert
-    Returns:
-
     """
+    logger = logging.getLogger('conv::Conv')
     weights, bias = None, None
     weights = node.weights[0]
     bias = None if len(node.weights) != 2 else node.weights[1]
-
-    print(f'WEIGHTSSDSADSAD: {weights.shape}')
 
     attributes: t.Dict = node.attributes
     has_bias = bias is not None
@@ -26,12 +26,17 @@ def add(node: onnx.NodeProto, input_layer, *node_inputs):
     pads = attributes['pads'] if 'pads' in attributes else [0, 0, 0]
     dilation = attributes['dilations'][0] if 'dilations' in attributes else 1
     strides = attributes['strides'] if 'strides' in attributes else [1, 1, 1]
+
+    # Get pads
     padding = None
     if len(pads) == 2 and (pads[0] > 0 or pads[1] > 0):
         padding = (pads[0], pads[1])
     elif len(pads) == 4 and (pads[0] > 0 or pads[1] > 0 or pads[2] > 0 or pads[3] > 0):
         padding = ((pads[0], pads[2]), (pads[1], pads[3]))
 
+    # Unlike in PyTorch, we need to manually add a zero-padding layer to get the same behavior.
+    # If you use Keras conv2d padding, you will not get the same output dimension as PyTorch padding.
+    # This caused me a lot headache before figuring it out thanks to onnx2keras.
     if padding:
         padding_name = node.name + '_pad'
         padding_layer = keras.layers.ZeroPadding2D(
@@ -41,14 +46,11 @@ def add(node: onnx.NodeProto, input_layer, *node_inputs):
         input_layer = padding_layer(input_layer)
 
     weights_shape = weights.shape
-    print(f'weight shape: {weights_shape}')
     height, width, channels_per_group, out_channels = weights_shape
-    print(f'Weight shape: {weights_shape}, input_shape: {input_layer.shape} '
-          f'Height: {height}, width: {width}, channel_per_group: {channels_per_group}, out_channels: {out_channels}')
     in_channels = channels_per_group * n_groups
 
     if n_groups == in_channels and n_groups != 1:
-        print('Number of groups is equal to input channels, use DepthWise convolution')
+        logger.info('Number of groups is equal to input channels, use DepthWise convolution')
         weights = weights.transpose(0, 1, 3, 2)
 
         conv = keras.layers.DepthwiseConv2D(
@@ -66,7 +68,7 @@ def add(node: onnx.NodeProto, input_layer, *node_inputs):
         outputs = conv(input_layer)
 
     elif n_groups != 1:
-        print('Number of groups more than 1, but less than number of in_channel, use group convolution')
+        logger.info('Number of groups more than 1, but less than number of in_channel, use group convolution')
 
         # Example from https://kratzert.github.io/2017/02/24/finetuning-alexnet-with-tensorflow.html
         def target_layer(x, groups=n_groups, stride_y=strides[0], stride_x=strides[1]):
@@ -101,9 +103,7 @@ def add(node: onnx.NodeProto, input_layer, *node_inputs):
         outputs = lambda_layer(input_layer)
 
     else:
-        print(f'normal conv~~~~~~~~~~~~~~~~~~~~, weight shape: {node.weights[0].shape}')
-        print(f'Node: {node}, out_channels: {out_channels},'
-              f' strides: {strides}, kernel size: {(height, width)}')
+        logger.info(f'normal conv~~~~~~~~~~~~~~~~~~~~, weight shape: {node.weights[0].shape}')
         outputs = keras.layers.Conv2D(
             filters=out_channels,
             kernel_size=(height, width),  # filters
@@ -117,18 +117,19 @@ def add(node: onnx.NodeProto, input_layer, *node_inputs):
             activation=None,
             data_format='channels_last',
         )(input_layer)
-    print(f'Output shape: {outputs.shape}')
 
     return outputs
 
 
 @converter('ConvTranspose')
-def add(node: onnx.NodeProto, input_layer, *node_inputs):
+def conv_transpose(node: OnnxNode, input_layer, *node_inputs):
     """
     Convert the add operation
+    @credit to onnx2keras where I got the implementation details from:
+    Link: https://github.com/gmalivenko/onnx2keras
     Args:
         node: The node that we wish to convert
-    Returns:
+    TODO: Work on this
 
     """
     attributes: t.Dict = node.attributes

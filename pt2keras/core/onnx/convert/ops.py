@@ -1,19 +1,18 @@
 import logging
 
 import numpy as np
-import onnx
-import typing as t
 
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import backend as K
 
 from .common import converter
+from ..graph import OnnxNode
 from ..util import tensor_proto_to_tf_dtype
 
 
 @converter('Constant')
-def constant(node: onnx.NodeProto, input_layer, *inputs):
+def constant(node: OnnxNode, input_layer, *inputs):
     """
     A operation that outputs the input
     Args:
@@ -24,7 +23,7 @@ def constant(node: onnx.NodeProto, input_layer, *inputs):
 
 
 @converter('Add')
-def add(node: onnx.NodeProto, input_layer, lhs, rhs):
+def add(node: OnnxNode, input_layer, lhs, rhs):
     logger = logging.getLogger('ops::Add')
     try:
         if not isinstance(lhs, np.ndarray) and not isinstance(rhs, np.ndarray) :
@@ -53,7 +52,7 @@ def add(node: onnx.NodeProto, input_layer, lhs, rhs):
 
 
 @converter('Mul')
-def multiply(node: onnx.NodeProto, input_layer, lhs, rhs):
+def multiply(node: OnnxNode, input_layer, lhs, rhs):
     logger = logging.getLogger('ops::Mul')
     try:
         mul = keras.layers.Multiply()
@@ -76,7 +75,7 @@ def multiply(node: onnx.NodeProto, input_layer, lhs, rhs):
 
 
 @converter('Div')
-def divide(node: onnx.NodeProto, input_layer, lhs, rhs):
+def divide(node: OnnxNode, input_layer, lhs, rhs):
     logger = logging.getLogger('ops::Div')
     try:
         output = lhs / rhs
@@ -98,7 +97,7 @@ def divide(node: onnx.NodeProto, input_layer, lhs, rhs):
 
 
 @converter('Cast')
-def cast(node: onnx.NodeProto, input_layer, *args):
+def cast(node: OnnxNode, input_layer, *args):
     """
     Floor divide is considered a Cast operation in onnx,
     since we are casting from float32 to int
@@ -109,7 +108,7 @@ def cast(node: onnx.NodeProto, input_layer, *args):
 
 
 @converter('Gather')
-def gather(node: onnx.NodeProto, input_layer, input_tensor, indices):
+def gather(node: OnnxNode, input_layer, input_tensor, indices):
     # the axis to slice across
     axis = node.attributes['axis']
     # Mapping PyTorch channels to keras
@@ -127,18 +126,18 @@ def gather(node: onnx.NodeProto, input_layer, input_tensor, indices):
 
 
 @converter('Dropout')
-def dropout(node: onnx.NodeProto, input_layer, input_tensor):
+def dropout(node: OnnxNode, input_layer, input_tensor):
     # TODO: Dropout removed during evaluation phase
     return keras.layers.Dropout()(input_layer)
 
 
 @converter('Flatten')
-def flatten(node: onnx.NodeProto, input_layer, input_tensor):
+def flatten(node: OnnxNode, input_layer, input_tensor):
     return keras.layers.Flatten()(input_layer)
 
 
 @converter('Gemm')
-def gemm(node: onnx.NodeProto, input_layer, *input_tensor):
+def gemm(node: OnnxNode, input_layer, *input_tensor):
     """
     Implementation for General Matrix Multiplication
     """

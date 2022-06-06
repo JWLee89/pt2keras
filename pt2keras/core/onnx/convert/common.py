@@ -72,7 +72,7 @@ def converter(onnx_op: str,
             return keras_layer
 
         if not override:
-            _LOGGER.warning(f'Registering onnx node converter: {onnx_op}')
+            _LOGGER.info(f'Registering onnx node converter: {onnx_op}')
         Graph._SUPPORTED_OPERATIONS[onnx_op] = created_converter
         return created_converter
 

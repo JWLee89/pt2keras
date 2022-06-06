@@ -3,6 +3,8 @@
 torch
 torchvision
 onnx
+# For running tests to see whether outputs are identical from onnx model
+onnxruntime
 
 # Tensorflow
 tensorflow; sys_platform != 'darwin' or platform_machine != 'arm64'

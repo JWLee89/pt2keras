@@ -29,7 +29,8 @@ class Graph:
                  pytorch_model: nn.Module,
                  input_shape: t.Tuple,
                  source_format: t.Tuple = ('B', 'C', 'H', 'W'),
-                 target_format: t.Tuple = ('B', 'H', 'W', 'C')):
+                 target_format: t.Tuple = ('B', 'H', 'W', 'C'),
+                 opset_version: int = 13):
         """
         By default the onnx graph is designed to convert PyTorch onnx
         models to Keras. By making small modifications and writing converters,
@@ -47,6 +48,7 @@ class Graph:
         self.pytorch_input_shape = input_shape
         self.source_format = source_format
         self.target_format = target_format
+        self.opset_version = opset_version
 
         dummy_input = torch.randn(input_shape)
         output = self.pytorch_model(dummy_input)
@@ -63,6 +65,7 @@ class Graph:
                           hash_str,
                           do_constant_folding=True,  # whether to execute constant folding for optimization
                           verbose=False,
+                          opset_version=self.opset_version,
                           # training=TrainingMode.TRAINING,
                           export_params=True,
                           input_names=['input_0'],
@@ -103,6 +106,9 @@ class Graph:
                 unsupported.append(node.op_type)
         return supported, unsupported
 
+    def set_logging_level(self, logging_level):
+        self._LOGGER.setLevel(logging_level)
+
     def _init_graph(self):
         """
         Forward pass over graph
@@ -111,8 +117,10 @@ class Graph:
             key = node.name
             onnx_node_obj = OnnxNode(node)
             self.node_dict[key] = onnx_node_obj
+
+            # Print node information
             node_info = printable_node(node)
-            print(f'NODE::::: {node_info}')
+            self._LOGGER.debug(f'NODE::::: {node_info}')
 
             if node.attribute:
                 for attribute in node.attribute:
@@ -137,10 +145,22 @@ class Graph:
                         self.computational_graph[constant_node_output] = onnx_node_obj.attributes['value']
 
     def _convert(self):
-        input_shape = get_graph_input_shape(self.onnx_model.graph, (0, 2, 3, 1))[0]['shape']
+        input_shape = self.pytorch_input_shape
+
+        # Change image shape from BCHW to BHWC (TensorFlow / Keras default shape)
+        dims = (i for i in range(len(input_shape))) if len(input_shape) != 4 else (0, 2, 3, 1)
+
+        # For now, assume we are working with models that have a single input.
+        # we will later need to test this with models that have multiple inputs
+        input_shape = get_graph_input_shape(self.onnx_model.graph, dims)[0]['shape']
+
+        # Create input object to feed to the model.
+        # This will need to change in the future if we want to support multiple inputs
         inputs = keras.Input(batch_shape=input_shape)
         outputs = inputs
 
+        # Store unsupported operations in a set so that
+        # we can figure out what we operations we need to add in the future
         has_unsupported_ops = False
         unsupported_ops = set()
 
@@ -151,7 +171,10 @@ class Graph:
                 unsupported_ops.add(op_type)
                 has_unsupported_ops = True
 
-            # no need to bother converting
+            # no need to bother converting if the library
+            # does not have all the necessary converters.
+            # Users can extend the library by adding the required support
+            # without modifying the library directly
             if has_unsupported_ops:
                 continue
 
@@ -161,18 +184,19 @@ class Graph:
                 if input_node in self.computational_graph:
                     node_inputs.append(self.computational_graph[input_node])
 
-
-            # convert to keras
-            print(f'Attempting to convert node: {node}')
-            print(f'Computational graph: {self.computational_graph.keys()}')
+            # Convert to keras
             outputs = conversion_func(node, outputs, self.computational_graph, *node_inputs)
-            print(f'Successfully converted: {node} to {outputs}')
+            Graph._LOGGER.info(f'Successfully converted: {node}')
+            Graph._LOGGER.info(f'Outputs: {node}')
 
         if has_unsupported_ops:
-            raise ValueError('Failed to convert model. The following operations are currently unsupported ... '
-                             f'{", ".join(unsupported_ops)}')
+            unsupported_operations = "\n- ".join(unsupported_ops)
+            raise ValueError('Failed to convert model. The following operations are currently unsupported: '
+                             f'{unsupported_operations}')
 
         model = keras.Model(inputs, outputs)
+        # Test the Keras model output.
+        # Error will be asserted if the output dimensions or values are very different.
         test_model_output(self.pytorch_model, model, self.pytorch_input_shape, input_shape)
         return model
 
@@ -181,12 +205,12 @@ class Graph:
             name = weight.name
             np_weights = numpy_helper.to_array(weight)
             if len(np_weights.shape) == len(self.source_format):
-                print(f'transposing weight: {weight.name}')
+                Graph._LOGGER.info(f'Transposing weights: {name}')
                 # H,W,IC,OC
                 np_weights = np_weights.transpose([2, 3, 1, 0])
-                print(f'np_weights: {np_weights.shape}')
 
-
+            # Note tht we can also check whether the initialize is actually a weight
+            # or a constant by checking what the name endswith
             # is_weight = name.endswith('weight') or name.endswith('bias')
 
             # operations such as the division in
@@ -205,10 +229,10 @@ class Graph:
                 if input_node in self.weights:
                     node.weights.append(self.weights[input_node]['weights'])
 
-        # Remove data
+        # Remove temporary dat
         del self.weights
 
-        print(f'Computational grpah: {self.computational_graph.keys()}')
+        self._LOGGER.info(f'Built computational graph: {self.computational_graph.keys()}')
 
 
 class OnnxNode:
