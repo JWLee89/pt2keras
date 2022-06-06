@@ -1,9 +1,39 @@
 import typing as t
 
-import tensorflow as tf
+import numpy as np
 import onnx.checker
-
 import onnx.helper
+import tensorflow as tf
+import torch
+
+
+def test_model_output(pytorch_model: torch.nn.Module,
+                      keras_model: tf.keras.Model,
+                      pt_input_shape: t.Tuple,
+                      keras_input_shape: t.Tuple,
+                      atol=1e-4):
+
+    x_keras = tf.ones(keras_input_shape)
+    x_pt = torch.ones(pt_input_shape)
+
+    output_pt = pytorch_model(x_pt)
+    output_keras = keras_model(x_keras)
+
+    if len(output_pt.shape) == 4:
+        output_pt = output_pt.permute(0, 2, 3, 1)
+
+    output_pt = output_pt.cpu().detach().numpy()
+    output_keras = output_keras.numpy()
+
+    assert output_pt.shape == output_keras.shape, 'PyTorch and Keras model output shape should be equal. ' \
+                                                  f'Got pt: {output_pt.shape}, Keras: {output_keras.shape}'
+
+    # Average diff over all axis
+    average_diff = np.mean(np.mean([output_pt, output_keras]))
+
+    output_is_approximately_equal = np.allclose(output_pt, output_keras, atol=atol)
+    assert output_is_approximately_equal, f'PyTorch output and Keras output is different. ' \
+                                          f'Mean difference: {average_diff}'
 
 
 def get_tensor_data(initializer: onnx.TensorProto) -> None:

@@ -1,170 +1,91 @@
 import logging
 
-import numpy as np
 import torch
-import torch.nn.functional as F
 import torch.nn as nn
-import onnx
-from onnx import numpy_helper
-#
-# from pt2keras import Pt2Keras
-# import tensorflow as tf
-#
-# from pt2keras.core.convert.common import converter
-# from pt2keras.core.models import EfficientNet
+import tensorflow as tf
+from torchvision.models.efficientnet import efficientnet_b0
 
 
-conv = nn.Conv2d(3, 16, (1, 1), (2, 2), bias=True)
-act = nn.SiLU()
-conv_transpose = nn.ConvTranspose2d(16, 32, kernel_size=(2, 2), stride=(2, 2))
+class Block(nn.Module):
+    def __init__(self):
+        super().__init__()
 
 
-#
-
-class Model(nn.Module):
+class DummyModel(nn.Module):
     def __init__(self):
         super().__init__()
         # These can all be found using named_modules() or children()
         self.conv = nn.Sequential(
-            nn.Conv2d(3, 16, (1, 1), (2, 2), bias=True),
-            nn.BatchNorm2d(16),
+            nn.Conv2d(3, 32, (3, 3), stride=(1, 1), padding=(1, 1), groups=1, bias=True),
+            nn.SiLU(),
+            # Downsample
+            nn.Conv2d(32, 64, (3, 3), stride=(1, 1), padding=(1, 1), dilation=(1, 1), groups=1, bias=True),
+            nn.SiLU(),
+
+            # nn.Conv2d(64, 128, (1, 1), stride=(2, 2), padding=(0, 0), groups=1, dilation=(1, 1), bias=False),
+
+            # nn.Conv2d(3, 32, (3, 3), stride=(2, 2), padding=(1, 1), groups=1, bias=True),
+            # nn.SiLU(),
+            # nn.Conv2d(32, 32, (3, 3), stride=(1, 1), padding=(1, 1), groups=32, dilation=(1, 1),  bias=True),
+            # nn.SiLU(),
+            # nn.ConvTranspose2d(32, 64, (3, 3), (2, 2), padding=(1, 1))
         )
-        self.pool = nn.Sequential(
-                nn.MaxPool2d(2),
-                nn.ConvTranspose2d(16, 32, kernel_size=(2, 2), stride=(2, 2)),
-                # nn.Sequential(
-                #     nn.Flatten(1)
-                # )
-            )
-        self.act = nn.SiLU()
+
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+
+        # self.conv = nn.Sequential(
+        #     nn.Conv2d(3, 16, (1, 1), (2, 2), bias=True),
+        #     # nn.BatchNorm2d(16),
+        #     # nn.ConvTranspose2d(16, 32, kernel_size=(3, 3), stride=(2, 2))
+        # )
 
     def forward(self, X):
         # we can retrieve these operations via .modules(), named_modules(), children(), etc.
         output = self.conv(X)
-        output = self.act(output)
-        output = self.pool(output)
-
-        # But not this
-        output = torch.flatten(output)
-
-        # Or this
-        final_output = torch.sigmoid(output)
-        final_output += 10
-        return final_output
-
-
-def analyze(model):
-    for name, module in model.named_children():
-        if not list(module.children()) == []:  # if not leaf node, ski[
-            print(f'has children: {name}')
-        print(f'Name: {name}, module: {module}')
+        new_path = self.avg_pool(output)
+        return new_path
+        # return output[:, :, 2, 4]
 
 
 if __name__ == '__main__':
-    model = Model()
+    from pt2keras import Pt2Keras
+    from copy import deepcopy
+    import numpy as np
+    # Test pt2keras on EfficientNet_b0
+    model = efficientnet_b0(pretrained=True).eval()
+    height_width = 32
 
-    analyze(model)
-    x = torch.ones(1, 3, 32, 32)
+    # Generate dummy inputs
+    x_keras = tf.random.normal((1, height_width, height_width, 3))
+    # input dimensions for PyTorch are BCHW, whereas TF / Keras default is BHWC
+    x_pt = torch.from_numpy(deepcopy(x_keras.numpy())).permute(0, 3, 1, 2)
 
-    import torch._C as _C
-    TrainingMode = _C._onnx.TrainingMode
+    print(f'pt shape: {x_pt.shape}, x_keras.shape: {x_keras.shape}')
 
-    # torch.onnx.export(model,
-    #                   x,
-    #                   'test_model.onnx',
-    #                   do_constant_folding=True,  # whether to execute constant folding for optimization
-    #                   verbose=False,
-    #                   training=TrainingMode.TRAINING,
-    #                   export_params=True,
-    #                   input_names=['input_0'],
-    #                   output_names=['output_0'])
-    #
-    # torch.onnx.export(model,
-    #                   x,
-    #                   'test_model.onnx',
-    #                   do_constant_folding=True,  # whether to execute constant folding for optimization
-    #                   export_params=True,
-    #                   input_names=['input_0'],
-    #                   output_names=['output_0'])
-    #
-    # # Load onnx model
-    onnx_model = onnx.load_model('test_model.onnx')
-    graph = onnx_model.graph
+    # Convert the model
+    converter = Pt2Keras(model, x_pt.shape)
+    # Set to debug to read information
+    converter.set_logging_level(logging.DEBUG)
 
-    # for init in graph.initializer:
-    #     print(init)
+    keras_model = converter.convert()
 
-    print('-' * 100)
-    nodes = graph.node
-    node_count = 0
+    # Make PT model the same input dimension as Keras
+    # If the output is >= 4 dimensional
+    pt_output = model(x_pt).cpu().detach().numpy()
+    keras_output = keras_model(x_keras).numpy()
+    # Mean average diff over all axis
 
-    float_type = onnx.TensorProto.DataType.FLOAT
+    average_diff = np.mean(np.mean([pt_output, keras_output]))
+    print(f'pytorch: {pt_output.shape}')
+    print(f'keras: {keras_output.shape}')
+    # The differences will be precision errors from multiplication / division
+    print(f'Mean average diff: {average_diff}')
 
-    for node in nodes:
-        print(f'Node: {node}')
-        print(f'Node name: {node.name}, '
-              f'Op type: {node.op_type}, '
-              f'input: {node.input}, '
-              f'output: {node.output}, ')
-        # node inputs
-        for idx, node_input_name in enumerate(node.input):
-            print(f'input node: {idx}, {node_input_name}')
-        # node outputs
-        for idx, node_output_name in enumerate(node.output):
-            print(f'Output node: {idx}, {node_output_name}')
+    output_is_approximately_equal = np.allclose(pt_output, keras_output, atol=1e-4)
+    assert output_is_approximately_equal, f'PyTorch output and Keras output is different. ' \
+                                          f'Mean difference: {average_diff}'
 
-        print('*' * 50)
-        node_count += 1
-
-    weights = onnx_model.graph.initializer
-    for weight in weights:
-        np_weights = numpy_helper.to_array(weight)
-        print(f'Weights: {np_weights.shape}')
-
-    print(f'Node count: {node_count}')
-
-    inputs = graph.input
-
-
-    # Get input shape
-    for graph_input in inputs:
-        input_shape = []
-        for d in graph_input.type.tensor_type.shape.dim:
-            if d.dim_value == 0:
-                input_shape.append(None)
-            else:
-                input_shape.append(d.dim_value)
-        print(
-            f"Input Name: {graph_input.name}, Input Data Type: {graph_input.type.tensor_type.elem_type}, Input Shape: {input_shape}"
-        )
-
-#
-# if __name__ == '__main__':
-#
-#
-#     converter = Pt2Keras()
-#     converter.set_logging_level(logging.DEBUG)
-#     model = Model()
-#     supported_layers, unsupported_layers = converter.inspect(model)
-#     print(f'Supported layers: {supported_layers}')
-#     print(f'Unsupported layers: {unsupported_layers}')
-#     # print(f'Is convertible: {converter.is_convertible(layers)}')
-#
-#     x = torch.ones(1, 3, 32, 32)
-#     converted_model = converter.convert(model)
-#     output_pt = model(x)
-#     if len(output_pt.shape) == 4:
-#         output_pt = output_pt.permute(0, 2, 3, 1)
-#
-#     x = tf.ones((1, 32, 32, 3))
-#     output = converted_model(x)
-#     converted_model.summary()
-#
-#     print(f'Output: {output_pt.shape}')
-#     print(f'Output: {output.shape}')
-#     output_pt = output_pt.detach().cpu().numpy()
-#
-#     # print(output_pt)
-#     # print(output)
-#
-#     # assert np.allclose(output_pt, output, atol=1e-2), 'outputs are different'
+    # See for yourself
+    # print(keras_output)
+    # print(pt_output)
+    keras_model.save('model.h5')
