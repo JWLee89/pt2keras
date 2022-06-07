@@ -19,6 +19,16 @@ def test_model_output(pytorch_model: torch.nn.Module,
     output_pt = pytorch_model(x_pt)
     output_keras = keras_model(x_keras)
 
+    if isinstance(output_pt, (t.Tuple, t.List)):
+        for pt_tensor, keras_tensor in zip(output_pt, output_keras):
+            test_equality(pt_tensor, keras_tensor, atol)
+    else:
+        print(f'Output keras: {output_keras}')
+        print(f'Output PyTorch: {output_pt}')
+        test_equality(output_pt, output_keras, atol)
+
+
+def test_equality(output_pt, output_keras, atol=1e-4):
     if len(output_pt.shape) == 4:
         output_pt = output_pt.permute(0, 2, 3, 1)
 
@@ -26,7 +36,8 @@ def test_model_output(pytorch_model: torch.nn.Module,
     output_keras = output_keras.numpy()
 
     assert output_pt.shape == output_keras.shape, 'PyTorch and Keras model output shape should be equal. ' \
-                                                  f'Got pt: {output_pt.shape}, Keras: {output_keras.shape}'
+                                                  f'PT output: {output_pt.shape}, ' \
+                                                  f'Keras output: {output_keras.shape}'
 
     # Average diff over all axis
     average_diff = np.mean(output_pt - output_keras)

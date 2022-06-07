@@ -132,17 +132,13 @@ def dropout(node: OnnxNode, input_layer, input_tensor):
     return keras.layers.Dropout()(input_layer), keras.layers.Dropout()
 
 
-@converter('Flatten')
-def flatten(node: OnnxNode, input_layer, input_tensor):
-    return keras.layers.Flatten()(input_layer), keras.layers.Flatten()
-
-
 @converter('Gemm')
 def gemm(node: OnnxNode, input_layer, *input_tensor):
     """
     Implementation for General Matrix Multiplication
     """
     attributes = node.attributes
+    dense_layer = None
     # Check if Bias available
     if len(input_tensor) == 3:
         has_bias = True
@@ -161,7 +157,7 @@ def gemm(node: OnnxNode, input_layer, *input_tensor):
     input_channels, output_channels = keras_weights[0].shape
 
     if isinstance(keras_weights[0], np.ndarray):
-        dense = keras.layers.Dense(
+        dense_layer = keras.layers.Dense(
             output_channels,
             weights=keras_weights,
             bias_initializer='zeros', kernel_initializer='zeros',
@@ -170,13 +166,14 @@ def gemm(node: OnnxNode, input_layer, *input_tensor):
 
         # The first input - always X
         try:
-            output = dense(input_layer)
+            output = dense_layer(input_layer)
         except ValueError:
             reshape = keras.layers.Reshape([input_channels])
             reshaped_x = reshape(input_layer)
-            output = dense(reshaped_x)
+            output = dense_layer(reshaped_x)
 
     else:
+        dense_layer = keras.layers.Multiply()
         output = keras.layers.Multiply()(input_layer, keras_weights[0])
 
-    return output, None
+    return output, dense_layer

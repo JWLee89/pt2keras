@@ -56,7 +56,7 @@ if __name__ == '__main__':
     from copy import deepcopy
     import numpy as np
     # Test pt2keras on EfficientNet_b0
-    model = DummyModel().eval()
+    model = efficientnet_b0().eval()
     height_width = 32
 
     # Generate dummy inputs

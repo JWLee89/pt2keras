@@ -7,10 +7,10 @@ from ..graph import OnnxNode
 
 
 @converter('GlobalAveragePool')
-def global_average_pool(node: OnnxNode, input_layer, input_tensor):
+def global_average_pool(node: OnnxNode, _, input_tensor):
     # axis = node.attributes['axis']
     global_pool = keras.layers.GlobalAveragePooling2D(data_format='channels_last')
-    output = global_pool(input_layer)
+    output = global_pool(input_tensor)
 
     def target_layer(x):
         # need to import inside lambda function to compile keras

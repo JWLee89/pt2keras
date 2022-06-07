@@ -59,6 +59,8 @@ class Graph:
         else:
             output_names.append('output_0')
 
+        self.output_names = output_names
+
         hash_str = f'__{hash(pytorch_model)}__.onnx'
         torch.onnx.export(self.pytorch_model,
                           dummy_input,
@@ -162,6 +164,7 @@ class Graph:
         # we can figure out what we operations we need to add in the future
         has_unsupported_ops = False
         unsupported_ops = set()
+        output_data = []
 
         # Convert the model
         for node_key, node in self.node_dict.items():
@@ -185,6 +188,9 @@ class Graph:
 
             # Convert to keras
             outputs = conversion_func(node, outputs, self.computational_graph, self.node_dict, *node_inputs)
+            if node.output_nodes[0].startswith('output'):
+                output_data.append(outputs)
+
             Graph._LOGGER.info(f'Successfully converted: {node}')
             Graph._LOGGER.info(f'Outputs: {node}')
 
@@ -192,8 +198,9 @@ class Graph:
             unsupported_operations = "\n- ".join(unsupported_ops)
             raise ValueError('Failed to convert model. The following operations are currently unsupported: '
                              f'{unsupported_operations}')
-
-        model = keras.Model(inputs, outputs)
+        if len(output_data) == 1:
+            output_data = output_data[0]
+        model = keras.Model(inputs, output_data)
         # Test the Keras model output.
         # Error will be asserted if the output dimensions or values are very different.
         test_model_output(self.pytorch_model, model, self.pytorch_input_shape, input_shape)
