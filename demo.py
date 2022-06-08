@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import tensorflow as tf
 from torchvision.models.efficientnet import efficientnet_b0
+from torchvision.models.resnet import resnet18
 
 
 class Block(nn.Module):

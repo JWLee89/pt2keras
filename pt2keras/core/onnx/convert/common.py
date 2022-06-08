@@ -3,15 +3,21 @@ import typing as t
 from functools import wraps
 
 import numpy as np
-from tensorflow import keras
-from tensorflow.keras import Model
 
-from pt2keras.core.onnx.graph import Graph, OnnxNode
+from pt2keras.core.onnx.graph import Graph, OnnxNode, TestResults
 
 _LOGGER = logging.getLogger('onnx:converter')
 
 
 class DuplicateOperatorConverterError(Exception):
+    """
+    Simple exception class that is raised when the same operator
+    is registered twice.
+    This can create unpredictable behavior in the app and thus, an
+    error is raised to minimize human error. To sidestep this error,
+    create a converter with the override=True explicitly set to mark that
+    the user is fully aware that they are overriding an existing converter.
+    """
     pass
 
 
@@ -34,7 +40,7 @@ def _test_operation(node: OnnxNode, node_dict, input_keras_layer, output_keras_l
         else:
             _LOGGER.warning(f'Output keras layer not available for: {node}. '
                             f'Skipping test.')
-        return
+        return False
 
     input_nodes = []
     for input_node_name in node.input_nodes:
@@ -50,14 +56,13 @@ def _test_operation(node: OnnxNode, node_dict, input_keras_layer, output_keras_l
 
     print(f'Inference: {keras_output.shape}')
 
-
-
     # Create intermediate computational graph for inference
     # node = helper.make_node(node.op_type, inputs=input_nodes, outputs=['yee'],
     #                         value=helper.make_tensor(name='test_temp',
     #                         data_type = tp.FLOAT,dims = training_results[‘intercept’].shape,
     #                         vals = training_results[‘intercept’].flatten())
 
+    return True
 
 
 def converter(onnx_op: str,
@@ -93,7 +98,8 @@ def converter(onnx_op: str,
 
         """
         @wraps(wrapped_fn)
-        def created_converter(onnx_node, input_layer, computational_graph, node_dict: t.Dict, *args, **kwargs) -> t.Any:
+        def created_converter(onnx_node: OnnxNode, input_layer, computational_graph, node_dict: t.Dict,
+                              test_results: TestResults, *args, **kwargs) -> t.Any:
             """
             Given a pytorch operation or layer, directly port it to keras
             Returns:
@@ -128,7 +134,16 @@ def converter(onnx_op: str,
             # 1. Perform tests to see whether the two layers (pytorch and keras)
             # are outputting the same value and shape
             test_layer: t.Callable = _test_operation if op_testing_fn is None else op_testing_fn
-            test_layer(onnx_node, node_dict, input_layer, keras_layer)
+            is_tested = test_layer(onnx_node, node_dict, input_layer, keras_layer)
+
+            # Add test data
+            if is_tested:
+                test_results.tested_nodes.append(onnx_node.name)
+                test_results.tested_operations.add(onnx_node.op_type)
+            else:
+                test_results.untested_nodes.append(onnx_node.name)
+                test_results.untested_operations.add(onnx_node.op_type)
+
             return keras_tensor
 
         if not override:

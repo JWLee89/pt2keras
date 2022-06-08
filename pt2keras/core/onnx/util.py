@@ -5,13 +5,26 @@ import onnx.checker
 import onnx.helper
 import tensorflow as tf
 import torch
+import torch.nn as nn
 
 
 def test_model_output(pytorch_model: torch.nn.Module,
                       keras_model: tf.keras.Model,
                       pt_input_shape: t.Tuple,
                       keras_input_shape: t.Tuple,
-                      atol=1e-4):
+                      atol=1e-4) -> None:
+    """
+    Compare and test the PyTorch and Keras model for output equality.
+    An error will be asserted if the generated inputs are not close
+    or are of different dimensions.
+    Args:
+        pytorch_model: The source PyTorch Model
+        keras_model: The target / generated Keras model
+        pt_input_shape: The dimension of the PyTorch input data
+        keras_input_shape: The dimension of the Keras input data
+        atol: The absolute tolerance parameter specified in numpy.
+        See numpy documentation for more information
+    """
 
     x_keras = tf.ones(keras_input_shape)
     x_pt = torch.ones(pt_input_shape)
@@ -23,12 +36,17 @@ def test_model_output(pytorch_model: torch.nn.Module,
         for pt_tensor, keras_tensor in zip(output_pt, output_keras):
             test_equality(pt_tensor, keras_tensor, atol)
     else:
-        print(f'Output keras: {output_keras}')
-        print(f'Output PyTorch: {output_pt}')
         test_equality(output_pt, output_keras, atol)
 
 
-def test_equality(output_pt, output_keras, atol=1e-4):
+def test_equality(output_pt: nn.Module, output_keras: tf.keras.Model, atol: float = 1e-4):
+    """
+    Test the outputs of the two models for equality.
+    Args:
+        output_pt: The output of a PyTorch model
+        output_keras: The output of the converted Keras model
+        atol: The absolute tolerance parameter specified in numpy.
+    """
     if len(output_pt.shape) == 4:
         output_pt = output_pt.permute(0, 2, 3, 1)
 

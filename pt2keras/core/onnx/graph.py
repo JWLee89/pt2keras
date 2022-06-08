@@ -17,7 +17,6 @@ from .util import get_graph_input_shape, test_model_output
 
 
 class Graph:
-
     _SUPPORTED_OPERATIONS = {}
     _LOGGER = logging.getLogger('onnx::Graph')
 
@@ -25,11 +24,10 @@ class Graph:
     A class that encapsulates and converts the onnx graph representation into
     Keras format
     """
+
     def __init__(self,
                  pytorch_model: nn.Module,
                  input_shape: t.Tuple,
-                 source_format: t.Tuple = ('B', 'C', 'H', 'W'),
-                 target_format: t.Tuple = ('B', 'H', 'W', 'C'),
                  opset_version: int = 13):
         """
         By default the onnx graph is designed to convert PyTorch onnx
@@ -39,27 +37,22 @@ class Graph:
         For now, since I am working with computer vision models, this onnx converter
         is designed to work with models in the computer vision fields, that generally
         have at most, 4 dimensional inputs
-
-        Args:
-            source_format: The source input format
-            target_format:
         """
         self.pytorch_model = pytorch_model
         self.pytorch_input_shape = input_shape
-        self.source_format = source_format
-        self.target_format = target_format
         self.opset_version = opset_version
+
+        # Added as class object for unit testing
+        self.test_stats = None
 
         dummy_input = torch.randn(input_shape)
         output = self.pytorch_model(dummy_input)
-        output_names = []
+        self.output_names = []
         if isinstance(output, (t.Tuple, t.List)):
             for i in range(len(output)):
-                output_names.append(f'output_{i}')
+                self.output_names.append(f'output_{i}')
         else:
-            output_names.append('output_0')
-
-        self.output_names = output_names
+            self.output_names.append('output_0')
 
         hash_str = f'__{hash(pytorch_model)}__.onnx'
         torch.onnx.export(self.pytorch_model,
@@ -71,7 +64,7 @@ class Graph:
                           # training=TrainingMode.TRAINING,
                           export_params=True,
                           input_names=['input_0'],
-                          output_names=output_names)
+                          output_names=self.output_names)
 
         # Check model
         self.onnx_model = onnx.load(hash_str)
@@ -166,6 +159,9 @@ class Graph:
         unsupported_ops = set()
         output_data = []
 
+        # Create a new test stats object for each conversion run.
+        self.test_stats = TestResults()
+
         # Convert the model
         for node_key, node in self.node_dict.items():
             op_type = node.op_type
@@ -187,19 +183,28 @@ class Graph:
                     node_inputs.append(self.computational_graph[input_node])
 
             # Convert to keras
-            outputs = conversion_func(node, outputs, self.computational_graph, self.node_dict, *node_inputs)
-            if node.output_nodes[0].startswith('output'):
+            outputs = conversion_func(node, outputs, self.computational_graph,
+                                      self.node_dict, self.test_stats, *node_inputs)
+
+            # Add to output data if output_node found
+            if node.output_nodes[0] in self.output_names:
                 output_data.append(outputs)
 
             Graph._LOGGER.info(f'Successfully converted: {node}')
-            Graph._LOGGER.info(f'Outputs: {node}')
+
+        # Print model conversion result if needed
+        self._LOGGER.info('Model conversion report: ###################### \n'
+                          f'{self.test_stats.get_test_results()}')
 
         if has_unsupported_ops:
             unsupported_operations = "\n- ".join(unsupported_ops)
             raise ValueError('Failed to convert model. The following operations are currently unsupported: '
                              f'{unsupported_operations}')
+
         if len(output_data) == 1:
+            self._LOGGER.info('Network contains only single output.')
             output_data = output_data[0]
+
         model = keras.Model(inputs, output_data)
         # Test the Keras model output.
         # Error will be asserted if the output dimensions or values are very different.
@@ -224,27 +229,75 @@ class Graph:
             # can be considered an initializer
             # in this case, we need to add a constant node to the graph
             # if not is_weight:
+
+            # IMPORTANT: Note that computational graph also contains
+            # not only weights, but constant values from constant nodes such as
+            # when we do element-wise additional to a constant
             self.computational_graph[name] = np_weights
+
             self.weights[name] = {
                 'weights': np_weights
             }
 
-        # move data to nodes
+        # move Weights to node for convenience
         for node in self.node_dict.values():
             for input_node in node.input_nodes:
                 if input_node in self.weights:
                     node.weights.append(self.weights[input_node]['weights'])
 
-        # Remove temporary dat
+        # Remove weights dictionary, since it is no longer needed
         del self.weights
 
         self._LOGGER.info(f'Built computational graph: {self.computational_graph.keys()}')
+
+
+class TestResults:
+    """
+    The class contains test results when converting the model on a node-by-node basis
+    """
+
+    def __init__(self):
+        self.tested_nodes: t.List = []
+        self.untested_nodes: t.List = []
+
+        self.tested_operations: t.Set = set()
+        self.untested_operations: t.Set = set()
+
+    def get_test_results(self, stat_delimiter: str = '\n - ') -> str:
+        """
+        Get a formatted string visualizing the test results.
+        Args:
+            stat_delimiter: The delimiter for each entry.
+            The default format is '-' delimited bullet points.
+            E.g.
+            - point1
+            - point2
+
+        Returns:
+            The formatted string containing the test results representing the
+            conversion results of a target model.
+        """
+        # Node-related stats
+        node_count = len(self.tested_nodes) + len(self.untested_nodes)
+        tested_nodes = stat_delimiter + stat_delimiter.join(self.tested_nodes)
+        untested_nodes = stat_delimiter + stat_delimiter.join(self.untested_nodes)
+
+        # Operation states
+        tested_operations = stat_delimiter + stat_delimiter.join(self.tested_operations)
+        untested_operations = stat_delimiter + stat_delimiter.join(self.untested_operations)
+
+        return f'Total node count: {node_count}. \n' \
+               f'Test nodes: {tested_nodes} \n' \
+               f'Untested nodes: {untested_nodes}. \n' \
+               f'Tested operations: {tested_operations} \n' \
+               f'Untested operations: {untested_operations} \n'
 
 
 class OnnxNode:
     """
     A node in the onnx graph
     """
+
     def __init__(self, node):
         self.name = node.name
         self.op_type = node.op_type

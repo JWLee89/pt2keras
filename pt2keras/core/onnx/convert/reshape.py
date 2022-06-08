@@ -2,9 +2,7 @@ import logging
 
 import numpy as np
 
-import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras import backend as K
 
 from .common import converter
 from ..graph import OnnxNode
@@ -42,6 +40,8 @@ def constant(node: OnnxNode, _, *inputs):
 
                 def target_layer(x):
                     import tensorflow as tf
+                    # input dimensions for PyTorch are BCHW, whereas TF / Keras default is BHWC
+                    # Change from TF / Keras Shape (BHWC) -> PyTorch (BCHW)
                     x = tf.transpose(x, [0, 3, 1, 2])
                     return x
 
