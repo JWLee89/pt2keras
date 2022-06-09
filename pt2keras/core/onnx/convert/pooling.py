@@ -1,4 +1,3 @@
-import onnx
 from tensorflow import keras
 
 from .common import converter
@@ -11,12 +10,13 @@ def global_average_pool(node: OnnxNode, _, input_tensor):
         # keepdims available in TF > 2.6.0.
         output_layer = keras.layers.GlobalAveragePooling2D(keepdims=True)
         output = output_layer(input_tensor)
-    except:
+    except TypeError as ex:
         # Fallback. TF version < 2.6.0
-        output_layer = keras.Sequential(
+        output_layer = keras.Sequential([
             keras.layers.GlobalAveragePooling2D(),
             keras.layers.Reshape((1, 1, input_tensor.shape[-1]))
-        )
+        ])
+        # Here, an error is thrown
         output = output_layer(input_tensor)
 
     return output, output_layer
