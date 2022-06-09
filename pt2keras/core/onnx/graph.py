@@ -157,7 +157,7 @@ class Graph:
         # we can figure out what we operations we need to add in the future
         has_unsupported_ops = False
         unsupported_ops = set()
-        output_data = []
+        output_list = []
 
         # Create a new test stats object for each conversion run.
         self.test_stats = TestResults()
@@ -188,7 +188,8 @@ class Graph:
 
             # Add to output data if output_node found
             if node.output_nodes[0] in self.output_names:
-                output_data.append(outputs)
+                print(f'output node: {node.output_nodes}, value: {outputs}')
+                output_list.append(outputs)
 
             Graph._LOGGER.info(f'Successfully converted: {node}')
 
@@ -201,11 +202,10 @@ class Graph:
             raise ValueError('Failed to convert model. The following operations are currently unsupported: '
                              f'{unsupported_operations}')
 
-        if len(output_data) == 1:
-            self._LOGGER.info('Network contains only single output.')
-            output_data = output_data[0]
+        if len(output_list) > 1:
+            outputs = output_list
 
-        model = keras.Model(inputs, output_data)
+        model = keras.Model(inputs, outputs)
         # Test the Keras model output.
         # Error will be asserted if the output dimensions or values are very different.
         test_model_output(self.pytorch_model, model, self.pytorch_input_shape, input_shape)

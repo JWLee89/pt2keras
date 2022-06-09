@@ -1,6 +1,5 @@
 import onnx
 from tensorflow import keras
-from tensorflow.keras import backend as K
 
 from .common import converter
 from ..graph import OnnxNode
@@ -8,24 +7,19 @@ from ..graph import OnnxNode
 
 @converter('GlobalAveragePool')
 def global_average_pool(node: OnnxNode, _, input_tensor):
-    # axis = node.attributes['axis']
-    global_pool = keras.layers.GlobalAveragePooling2D(data_format='channels_last')
-    output = global_pool(input_tensor)
+    try:
+        # keepdims available in TF > 2.6.0.
+        output_layer = keras.layers.GlobalAveragePooling2D(keepdims=True)
+        output = output_layer(input_tensor)
+    except:
+        # Fallback. TF version < 2.6.0
+        output_layer = keras.Sequential(
+            keras.layers.GlobalAveragePooling2D(),
+            keras.layers.Reshape((1, 1, input_tensor.shape[-1]))
+        )
+        output = output_layer(input_tensor)
 
-    def target_layer(x):
-        # need to import inside lambda function to compile keras
-        from tensorflow import keras
-        return keras.backend.expand_dims(x)
-
-    lambda_layer1 = keras.layers.Lambda(target_layer)
-    lambda_layer2 = keras.layers.Lambda(target_layer)
-
-    output = lambda_layer1(output)  # double expand dims
-    output = lambda_layer2(output)
-
-    # need to permute to convert fully to keras
-    output = K.permute_dimensions(output, (0, 2, 3, 1))
-    return output, None
+    return output, output_layer
 
 
 @converter('MaxPool')
@@ -82,4 +76,3 @@ def max_pool(node: OnnxNode, input_layer, input_tensor):
         raise ValueError('Pooling operation must be performed on 2D or 3D objects')
 
     return pooling(input_layer)
-

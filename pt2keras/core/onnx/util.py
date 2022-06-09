@@ -1,11 +1,16 @@
+import logging
 import typing as t
 
 import numpy as np
 import onnx.checker
 import onnx.helper
 import tensorflow as tf
+from tensorflow import keras
 import torch
 import torch.nn as nn
+
+
+_LOGGER = logging.getLogger('util::Test')
 
 
 def test_model_output(pytorch_model: torch.nn.Module,
@@ -53,9 +58,19 @@ def test_equality(output_pt: nn.Module, output_keras: tf.keras.Model, atol: floa
     output_pt = output_pt.cpu().detach().numpy()
     output_keras = output_keras.numpy()
 
-    assert output_pt.shape == output_keras.shape, 'PyTorch and Keras model output shape should be equal. ' \
-                                                  f'PT output: {output_pt.shape}, ' \
-                                                  f'Keras output: {output_keras.shape}'
+    # batch dimension may have been removed for PyTorch model using flatten
+    if len(output_pt.shape) == len(output_keras.shape) - 1:
+        for pt_dim, keras_dim in zip(output_pt.shape, output_keras.shape[1:]):
+            assert pt_dim == keras_dim, 'Batch dimension may have been removed from PyTorch model, but ' \
+                                        f'the input dimensions still dont match. ' \
+                                        f'PT shape: {output_pt.shape}' \
+                                        f'Keras shape: {output_keras.shape}'
+        _LOGGER.warning('Batch dimension may have possibly been removed from PyTorch model. '
+                        'Does your model use nn.Flatten() or torch.flatten() with start_dim=1 ?')
+    else:
+        assert output_pt.shape == output_keras.shape, 'PyTorch and Keras model output shape should be equal. ' \
+                                                      f'PT shape: {output_pt.shape}, ' \
+                                                      f'Keras shape: {output_keras.shape}'
 
     # Average diff over all axis
     average_diff = np.mean(output_pt - output_keras)
@@ -124,6 +139,36 @@ def get_graph_input_shape(graph: onnx.GraphProto,
     return shape_info
 
 
+def to_tf(obj, fake_input_layer=None, name=None):
+    """
+    Convert to Keras Constant if needed
+    @Credit onnx2keras for this function
+    https://github.com/gmalivenko/onnx2keras/blob/45c81f221bb4228751abb061cb24d473bb74a8e8/onnx2keras/utils.py#L26
+
+    Args:
+        obj: numpy / tf type
+        fake_input_layer: fake input layer to add constant
+    Returns:
+        Tf constant
+    """
+    if isinstance(obj, np.ndarray):
+        # Downcast
+        if obj.dtype == np.int64:
+            obj = np.int32(obj)
+
+        def target_layer(_, inp=obj, dtype=obj.dtype.name):
+            import numpy as np
+            import tensorflow as tf
+            if not isinstance(inp, (np.ndarray, np.generic)):
+                inp = np.array(inp, dtype=dtype)
+            return tf.constant(inp, dtype=inp.dtype)
+
+        lambda_layer = keras.layers.Lambda(target_layer, name=name)
+        return lambda_layer(fake_input_layer)
+    else:
+        return obj
+
+
 def get_graph_output_shape(graph: onnx.GraphProto,
                            transpose_matrix: t.Union[t.List, t.Tuple] = None) -> t.List[t.Dict]:
     """
@@ -180,4 +225,3 @@ def generate_node_key(node: onnx.NodeProto):
         final_key = final_key[:-1]
 
     return final_key
-

@@ -22,6 +22,7 @@ def constant(node: OnnxNode, _, *inputs):
     input_layer, shape_arr = inputs
     output_layer = None
     attributes = node.attributes
+    print(f'RESHAPE ------------------------ {attributes}, inputs: {inputs}')
     if isinstance(shape_arr, np.ndarray):
 
         if isinstance(input_layer, np.ndarray):
@@ -69,7 +70,6 @@ def constant(node: OnnxNode, _, *inputs):
                 # Otherwise, we will be performing the wrong flattening operation T_T
                 output_layer = keras.layers.Flatten()
                 output = output_layer(input_layer)
-
             else:
                 output_layer = keras.layers.Reshape(reshape_target)
                 print(f'Input layer: {input_layer}, shape arr: {reshape_target}')
@@ -80,28 +80,33 @@ def constant(node: OnnxNode, _, *inputs):
 
 
 @converter('Flatten')
-def flatten(node: OnnxNode, input_layer, *input_tensor):
-    logger = logging.getLogger('onnx::Flatten')
+def flatten(node: OnnxNode, input_layer, input_tensor):
+    print(f'input tensor: {input_tensor}')
+    return keras.layers.Flatten()(input_layer), keras.layers.Flatten()
 
-    if len(input_tensor) != 1:
-        raise AttributeError('Number of inputs is not equal 1 for flatten layer')
-
-    logger.debug(f'Convert Flatten ... {node}')
-    input_tensor = input_tensor[0]
-
-    # Need to transpose, otherwise we get all sorts of funky errors ...
-    def target_layer(x):
-        import tensorflow as tf
-        x = tf.transpose(x, [0, 3, 1, 2])
-        return x
-
-    lambda_layer = keras.layers.Lambda(target_layer)
-    new_input = lambda_layer(input_tensor)
-
-    output_layer = keras.layers.Reshape([-1])
-    output = output_layer(new_input)
-
-    return output, output_layer
+# @converter('Flatten')
+# def flatten(node: OnnxNode, input_layer, *input_tensor):
+#     logger = logging.getLogger('onnx::Flatten')
+#
+#     if len(input_tensor) != 1:
+#         raise AttributeError('Number of inputs is not equal 1 for flatten layer')
+#
+#     logger.debug(f'Convert Flatten ... {node}')
+#     input_tensor = input_tensor[0]
+#
+#     # Need to transpose, otherwise we get all sorts of funky errors ...
+#     def target_layer(x):
+#         import tensorflow as tf
+#         x = tf.transpose(x, [0, 3, 1, 2])
+#         return x
+#
+#     lambda_layer = keras.layers.Lambda(target_layer)
+#     new_input = lambda_layer(input_tensor)
+#
+#     output_layer = keras.layers.Reshape([-1])
+#     output = output_layer(new_input)
+#
+#     return output, output_layer
 
 
 @converter('Shape')

@@ -45,10 +45,11 @@ class DummyModel(nn.Module):
         # we can retrieve these operations via .modules(), named_modules(), children(), etc.
         output = self.conv(X)
         new_path = self.avg_pool(output)
-        flat = new_path.view(-1, 64)
-        output = self.linear(flat)
-        # flat = torch.flatten(new_path)
-        return torch.relu(output)
+        output = torch.flatten(new_path, start_dim=1)
+        # output = new_path.view(-1, 64)
+        output = self.linear(output)
+        # output = torch.flatten(new_path)
+        return output
         # return output[:, :, 2, 4]
 
 
@@ -57,7 +58,8 @@ if __name__ == '__main__':
     from copy import deepcopy
     import numpy as np
     # Test pt2keras on EfficientNet_b0
-    model = efficientnet_b0().eval()
+    model = DummyModel()
+    # model = efficientnet_b0().eval()
     height_width = 32
 
     # Generate dummy inputs

@@ -5,6 +5,7 @@ from functools import wraps
 import numpy as np
 
 from pt2keras.core.onnx.graph import Graph, OnnxNode, TestResults
+from pt2keras.core.onnx.util import to_tf
 
 _LOGGER = logging.getLogger('onnx:converter')
 
@@ -52,7 +53,12 @@ def _test_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inpu
 
     # Perform inference with keras
     input_data = np.random.randn(*input_keras_layer.shape)
+
+    print(f'Output keras layer: {output_keras_layer}')
+
     keras_output = output_keras_layer(input_data).numpy()
+    print(f'Output keras: {keras_output.shape}')
+
     # Convert Keras output to original PyTorch shape if 4D output
     if len(keras_output.shape) == 4:
         keras_output = keras_output.transpose(0, 3, 1, 2)
@@ -136,7 +142,6 @@ def converter(onnx_op: str,
             for output_node_name in onnx_node.output_nodes:
                 if output_node_name not in computational_graph:
                     computational_graph[output_node_name] = keras_tensor
-                    print(f'keras layer: {keras_tensor}')
 
             # Post processing
             # -------------------
