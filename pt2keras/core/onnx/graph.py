@@ -305,6 +305,9 @@ class OnnxNode:
         self.output_nodes = node.output
         self.weights = []
         self.attributes = {}
+        # This is for unit testing
+        # Access to original ProtoBuf attributes
+        self.original_attribute = node.attribute
 
     def __repr__(self):
         return f'name: {self.name}: ' \

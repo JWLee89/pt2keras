@@ -169,9 +169,6 @@ def slice_inputs(node: OnnxNode, _, *inputs):
     Returns:
     """
     logger = logging.getLogger('onnx::Slice')
-    for input in inputs:
-        print(f'Input: {input.shape}')
-
     if len(inputs) == 5:
         input_layer, starts, ends, axes, steps = inputs
     else:

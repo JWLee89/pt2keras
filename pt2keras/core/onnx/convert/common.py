@@ -21,7 +21,7 @@ class DuplicateOperatorConverterError(Exception):
     pass
 
 
-def _test_operation(node: OnnxNode, node_dict, input_keras_layer, output_keras_layer):
+def _test_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inputs) -> bool:
     """
     The default testing function. After each layer / operation is made,
     the test will be run to ensure that the output from the onnx model
@@ -32,7 +32,7 @@ def _test_operation(node: OnnxNode, node_dict, input_keras_layer, output_keras_l
         output_keras_layer: The output of this keras layer must be tested.
 
     Returns:
-
+        True if tested, otherwise return False.
     """
     if output_keras_layer is None:
         if node.op_type == 'Constant':
@@ -42,19 +42,29 @@ def _test_operation(node: OnnxNode, node_dict, input_keras_layer, output_keras_l
                             f'Skipping test.')
         return False
 
-    input_nodes = []
-    for input_node_name in node.input_nodes:
-        if input_node_name in node_dict:
-            input_nodes.append(node_dict[input_node_name])
+    # Print metadata during debug mode
+    print(f'Input node count: {len(inputs)}, operation: {node.op_type}')
+    for i, input in enumerate(inputs):
+        if isinstance(input, np.ndarray):
+            print(f'Input no. {i + 1} - {input.shape}')
         else:
-            # Network input node:
-            print(f'We are dealing with network input. Name: {input_node_name}, : {input_keras_layer}')
+            print(f'Input no. {i + 1} - {input}')
 
-    print(f'Onnx node: {node}')
+    # Perform inference with keras
     input_data = np.random.randn(*input_keras_layer.shape)
-    keras_output = output_keras_layer(input_data)
+    keras_output = output_keras_layer(input_data).numpy()
+    # Convert Keras output to original PyTorch shape if 4D output
+    if len(keras_output.shape) == 4:
+        keras_output = keras_output.transpose(0, 3, 1, 2)
+
+    # Create onnx computational graph
+
+    # Infer with onnx
+
+    # Check whether the outputs are equal. If not, we need to
 
     print(f'Inference: {keras_output.shape}')
+    print(f'Infered with node: {node}')
 
     # Create intermediate computational graph for inference
     # node = helper.make_node(node.op_type, inputs=input_nodes, outputs=['yee'],
@@ -134,7 +144,7 @@ def converter(onnx_op: str,
             # 1. Perform tests to see whether the two layers (pytorch and keras)
             # are outputting the same value and shape
             test_layer: t.Callable = _test_operation if op_testing_fn is None else op_testing_fn
-            is_tested = test_layer(onnx_node, node_dict, input_layer, keras_layer)
+            is_tested = test_layer(onnx_node, input_layer, keras_layer, *args, **kwargs)
 
             # Add test data
             if is_tested:
