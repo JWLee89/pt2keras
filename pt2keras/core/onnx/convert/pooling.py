@@ -18,7 +18,6 @@ def global_average_pool(node: OnnxNode, _, input_tensor):
         ])
         # Here, an error is thrown
         output = output_layer(input_tensor)
-
     return output, output_layer
 
 

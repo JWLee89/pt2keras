@@ -24,6 +24,17 @@ def constant(node: OnnxNode, input_layer, *inputs):
 
 @converter('Add')
 def add(node: OnnxNode, input_layer, lhs, rhs):
+    """
+    TODO: Add unit test
+    Args:
+        node:
+        input_layer:
+        lhs:
+        rhs:
+
+    Returns:
+
+    """
     logger = logging.getLogger('ops::Add')
     try:
         if not isinstance(lhs, np.ndarray) and not isinstance(rhs, np.ndarray):
@@ -54,9 +65,21 @@ def add(node: OnnxNode, input_layer, lhs, rhs):
 
 @converter('Mul')
 def multiply(node: OnnxNode, input_layer, lhs, rhs):
+    """
+    TODO: add unit test
+    Args:
+        node:
+        input_layer:
+        lhs:
+        rhs:
+
+    Returns:
+
+    """
     logger = logging.getLogger('ops::Mul')
     try:
         mul = keras.layers.Multiply()
+        print(f'LHS: {lhs.shape}, RHS: {rhs.shape}')
         output = mul([lhs, rhs])
     except (IndexError, ValueError):
         logger.debug('Failed to use keras.layers.Multiply. Fallback to TF lambda.')

@@ -186,7 +186,7 @@ def get_graph_output_shape(graph: onnx.GraphProto,
     return shape_info
 
 
-def _add_node_property(node, transpose_matrix: t.Union[t.List, t.Tuple] = None):
+def _add_node_property(node, transpose_matrix: t.Union[t.List, t.Tuple] = None) -> t.Dict:
     data = {NodeProperties.name: node.name}
     input_shape = []
     # Grab dimension information

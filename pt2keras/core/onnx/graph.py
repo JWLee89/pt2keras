@@ -2,6 +2,7 @@ import logging
 import os.path
 import typing as t
 import onnx
+import onnxruntime as ort
 import torch.nn as nn
 
 from collections import OrderedDict
@@ -13,7 +14,7 @@ from onnx import numpy_helper
 from onnx.helper import get_attribute_value
 from tensorflow import keras
 
-from .util import get_graph_input_shape, test_model_output
+from .util import get_graph_input_shape, get_graph_output_shape, test_model_output
 
 
 class Graph:
@@ -26,7 +27,7 @@ class Graph:
     """
 
     def __init__(self,
-                 pytorch_model: nn.Module,
+                 model: t.Union[nn.Module, str, onnx.ModelProto],
                  input_shape: t.Tuple,
                  opset_version: int = 13):
         """
@@ -38,39 +39,52 @@ class Graph:
         is designed to work with models in the computer vision fields, that generally
         have at most, 4 dimensional inputs
         """
-        self.pytorch_model = pytorch_model
         self.pytorch_input_shape = input_shape
         self.opset_version = opset_version
 
         # Added as class object for unit testing
         self.test_stats = None
+        self.model = model
 
-        dummy_input = torch.randn(input_shape)
-        output = self.pytorch_model(dummy_input)
-        self.output_names = []
-        if isinstance(output, (t.Tuple, t.List)):
-            for i in range(len(output)):
-                self.output_names.append(f'output_{i}')
+        if isinstance(self.model, nn.Module):
+            # For now, we assume that there is only a single input
+            # We can later change this to support multiple inputs
+            dummy_input = torch.randn(input_shape)
+            output = self.model(dummy_input)
+            self.output_names = []
+            if isinstance(output, (t.Tuple, t.List)):
+                for i in range(len(output)):
+                    self.output_names.append(f'output_{i}')
+            else:
+                self.output_names.append('output_0')
+
+            hash_str = f'__{hash(model)}__.onnx'
+            torch.onnx.export(self.model,
+                              dummy_input,
+                              hash_str,
+                              do_constant_folding=True,  # whether to execute constant folding for optimization
+                              verbose=False,
+                              opset_version=self.opset_version,
+                              export_params=True,
+                              input_names=['input_0'],
+                              output_names=self.output_names)
+
+            # Check model and create onnx runtime session
+            self.onnx_model = onnx.load(hash_str)
+            self.ort_session = ort.InferenceSession(hash_str)
+            onnx.checker.check_model(self.onnx_model)
+            if os.path.exists(hash_str):
+                os.remove(hash_str)
+        elif isinstance(self.model, str):
+            self.onnx_model = onnx.load(model)
+            self.ort_session = ort.InferenceSession(model)
         else:
-            self.output_names.append('output_0')
+            raise ValueError(f'Invalid model type: {self.model}. Please pass in '
+                             f'PyTorch model or onnx model string path.')
 
-        hash_str = f'__{hash(pytorch_model)}__.onnx'
-        torch.onnx.export(self.pytorch_model,
-                          dummy_input,
-                          hash_str,
-                          do_constant_folding=True,  # whether to execute constant folding for optimization
-                          verbose=False,
-                          opset_version=self.opset_version,
-                          # training=TrainingMode.TRAINING,
-                          export_params=True,
-                          input_names=['input_0'],
-                          output_names=self.output_names)
-
-        # Check model
-        self.onnx_model = onnx.load(hash_str)
-        onnx.checker.check_model(self.onnx_model)
-        if os.path.exists(hash_str):
-            os.remove(hash_str)
+        # For now, assume we are working with models that have a single input.
+        # we will later need to test this with models that have multiple inputs
+        self.output_names = [output['name'] for output in get_graph_output_shape(self.onnx_model.graph)]
 
         self.weights = OrderedDict()
         self.node_dict = OrderedDict()
@@ -142,11 +156,17 @@ class Graph:
         input_shape = self.pytorch_input_shape
 
         # Change image shape from BCHW to BHWC (TensorFlow / Keras default shape)
-        dims = (i for i in range(len(input_shape))) if len(input_shape) != 4 else (0, 2, 3, 1)
+        dims = (i for i in range(len(input_shape))) if len(input_shape) != 4 or input_shape[-1] == 3 else (0, 2, 3, 1)
 
         # For now, assume we are working with models that have a single input.
         # we will later need to test this with models that have multiple inputs
         input_shape = get_graph_input_shape(self.onnx_model.graph, dims)[0]['shape']
+
+        # First dimension = 0 is dynamic batching. We disallow those ...
+        if input_shape[0] == 0:
+            error_msg = 'Cannot convert model with dynamic batch size ... '
+            self._LOGGER.error(error_msg)
+            raise ValueError(error_msg)
 
         # Create input object to feed to the model.
         # This will need to change in the future if we want to support multiple inputs
@@ -208,7 +228,7 @@ class Graph:
         model = keras.Model(inputs, outputs)
         # Test the Keras model output.
         # Error will be asserted if the output dimensions or values are very different.
-        test_model_output(self.pytorch_model, model, self.pytorch_input_shape, input_shape)
+        # test_model_output(self.model, model, self.pytorch_input_shape, input_shape)
         return model
 
     def _initialize_weights(self):
@@ -234,6 +254,8 @@ class Graph:
             # not only weights, but constant values from constant nodes such as
             # when we do element-wise additional to a constant
             self.computational_graph[name] = np_weights
+
+            print(f'Weights for layer: {name}, {np_weights.shape}')
 
             self.weights[name] = {
                 'weights': np_weights

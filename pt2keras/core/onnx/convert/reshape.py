@@ -6,6 +6,7 @@ from tensorflow import keras
 
 from .common import converter
 from ..graph import OnnxNode
+from ..util import to_tf
 
 
 @converter('Reshape')
@@ -145,6 +146,7 @@ def concat(node: OnnxNode, _, *inputs):
         if len(layer_input) > 1:
             try:
                 output_layer = keras.layers.concatenate(inputs=layer_input, axis=axis)
+                output = output_layer(layer_input)
             except:
                 logger.warning('!!! IMPORTANT INFORMATION !!!')
                 logger.warning('Something goes wrong with concat layers. Will use TF fallback.')
@@ -235,4 +237,54 @@ def slice_inputs(node: OnnxNode, _, *inputs):
             output_layer = keras.layers.Lambda(target_layer)
             output = output_layer(input_layer)
     logger.debug(f'Output handled: {output}, Layer: {output_layer}')
+    return output, output_layer
+
+
+@converter('Unsqueeze')
+def unsqueeze(node: OnnxNode, _, *inputs):
+
+    attributes = node.attributes
+    input_data = inputs[0]
+    print(f'Attributes: {attributes}')
+
+    def target_layer(x):
+        from tensorflow import keras
+        return keras.backend.expand_dims(x, 0)
+
+    output_layer = keras.layers.Lambda(target_layer)
+    output = output_layer(input_data)
+
+    return output, output_layer
+
+
+@converter('Squeeze')
+def squeeze(node: OnnxNode, _, *inputs):
+
+    input_0 = to_tf(inputs[0])
+    attributes = node.attributes
+
+    def target_layer(x, axis=attributes['axes'][0]):
+        from tensorflow import keras
+        return keras.backend.squeeze(x, axis)
+
+    output_layer = keras.layers.Lambda(target_layer)
+    output = output_layer(input_0)
+    return output, output_layer
+
+
+@converter('Transpose')
+def transpose(node: OnnxNode, input_layer, *inputs):
+    attributes = node.attributes
+    output_layer = None
+    if attributes['perm'][0] != 0:
+        print('Can\'t permute batch dimension. Result may be wrong.')
+        if isinstance(input_layer, np.ndarray):
+            print('Transposing numpy array.')
+            output = np.transpose(input_layer, axes=attributes['perm'])
+        else:
+            raise NotImplementedError('Can\'t modify this type of data')
+    else:
+        output_layer = keras.layers.Permute(attributes['perm'][1:])
+        output = output_layer(input_layer)
+
     return output, output_layer

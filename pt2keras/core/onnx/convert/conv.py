@@ -104,7 +104,8 @@ def conv(node: OnnxNode, input_layer, *node_inputs):
         outputs = output_layer(input_layer)
 
     else:
-        logger.info(f'normal conv~~~~~~~~~~~~~~~~~~~~, weight shape: {node.weights[0].shape}')
+        logger.info(f'normal conv~~~~~~~~~~~~~~~~~~~~, weight shape: {node.weights[0].shape}, out channels: '
+                    f'{out_channels}')
         output_layer = keras.layers.Conv2D(
             filters=out_channels,
             kernel_size=(height, width),  # filters
@@ -118,8 +119,9 @@ def conv(node: OnnxNode, input_layer, *node_inputs):
             activation=None,
         )
         outputs = output_layer(input_layer)
+        print(f'Weight shape: {outputs.shape}')
 
-    return outputs, input_layer, output_layer
+    return outputs, output_layer
 
 
 @converter('ConvTranspose')

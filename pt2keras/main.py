@@ -2,6 +2,7 @@ import logging
 import os
 import typing as t
 
+import onnx
 import torch.nn as nn
 
 
@@ -21,6 +22,12 @@ class Pt2Keras:
         if isinstance(self.model, nn.Module):
             self.intermediate_rep = Pt2Keras._AVAILABLE_IR[0]
             self.model.eval()
+        # onnx file path
+        elif isinstance(self.model, str) and self.model.endswith('.onnx'):
+            if not os.path.exists(self.model):
+                raise IOError(f'Cannot find onnx model at specified path: {self.model}')
+
+            self.intermediate_rep = Pt2Keras._AVAILABLE_IR[0]
         else:
             raise ValueError(f'Invalid model type. '
                              f'Please pass in one of the following values: {Pt2Keras._AVAILABLE_IR}')
@@ -39,6 +46,7 @@ class Pt2Keras:
 
     @intermediate_rep.setter
     def intermediate_rep(self, value):
+        # Import all converters
         if value == 'onnx':
             for entry in os.scandir('pt2keras/core/onnx/convert'):
                 if entry.is_file():

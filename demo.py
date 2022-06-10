@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 import tensorflow as tf
 from torchvision.models.efficientnet import efficientnet_b0
-from torchvision.models.resnet import resnet18
 
 
 class Block(nn.Module):
@@ -57,20 +56,21 @@ if __name__ == '__main__':
     from pt2keras import Pt2Keras
     from copy import deepcopy
     import numpy as np
+    from torchvision.models.resnet import resnet18
     # Test pt2keras on EfficientNet_b0
-    model = DummyModel()
-    # model = efficientnet_b0().eval()
-    height_width = 32
+    # model = DummyModel()
+    model = efficientnet_b0().eval()
+    height_width = 224
 
     # Generate dummy inputs
     x_keras = tf.random.normal((1, height_width, height_width, 3))
     # input dimensions for PyTorch are BCHW, whereas TF / Keras default is BHWC
-    x_pt = torch.from_numpy(deepcopy(x_keras.numpy())).permute(0, 3, 1, 2)
+    x_pt = torch.from_numpy(deepcopy(x_keras.numpy()))
 
     print(f'pt shape: {x_pt.shape}, x_keras.shape: {x_keras.shape}')
 
     # Convert the model
-    converter = Pt2Keras(model, x_pt.shape)
+    converter = Pt2Keras('efficientnet_s_google.onnx', x_pt.shape)
     # Set to debug to read information
     converter.set_logging_level(logging.DEBUG)
 
