@@ -44,39 +44,23 @@ def _test_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inpu
         return False
 
     # Print metadata during debug mode
-    print(f'Input node count: {len(inputs)}, operation: {node.op_type}')
-    for i, input in enumerate(inputs):
-        if isinstance(input, np.ndarray):
-            print(f'Input no. {i + 1} - {input.shape}')
-        else:
-            print(f'Input no. {i + 1} - {input}')
+    # print(f'Input node count: {len(inputs)}, operation: {node.op_type}')
+    # for i, input in enumerate(inputs):
+    #     if isinstance(input, np.ndarray):
+    #         print(f'Input no. {i + 1} - {input.shape}')
+    #     else:
+    #         print(f'Input no. {i + 1} - {input}')
 
     # Perform inference with keras
     input_data = np.random.randn(*input_keras_layer.shape)
-
-    print(f'Output keras layer: {output_keras_layer}, input_keras_layer: {input_keras_layer}, inputs: {inputs}')
-
     keras_output = output_keras_layer(input_data).numpy()
-    print(f'Output keras: {keras_output.shape}')
+    # print(f'Output keras: {keras_output.shape}')
+
+    # Perform inference with onnx runtime.
 
     # Convert Keras output to original PyTorch shape if 4D output
     if len(keras_output.shape) == 4:
         keras_output = keras_output.transpose(0, 3, 1, 2)
-
-    # Create onnx computational graph
-
-    # Infer with onnx
-
-    # Check whether the outputs are equal. If not, we need to
-
-    print(f'Inference: {keras_output.shape}')
-    print(f'Infered with node: {node}')
-
-    # Create intermediate computational graph for inference
-    # node = helper.make_node(node.op_type, inputs=input_nodes, outputs=['yee'],
-    #                         value=helper.make_tensor(name='test_temp',
-    #                         data_type = tp.FLOAT,dims = training_results[‘intercept’].shape,
-    #                         vals = training_results[‘intercept’].flatten())
 
     return True
 
@@ -146,18 +130,18 @@ def converter(onnx_op: str,
             # Post processing
             # -------------------
 
-            # # 1. Perform tests to see whether the two layers (pytorch and keras)
-            # # are outputting the same value and shape
-            # test_layer: t.Callable = _test_operation if op_testing_fn is None else op_testing_fn
-            # is_tested = test_layer(onnx_node, input_layer, keras_layer, *args, **kwargs)
-            #
-            # # Add test data
-            # if is_tested:
-            #     test_results.tested_nodes.append(onnx_node.name)
-            #     test_results.tested_operations.add(onnx_node.op_type)
-            # else:
-            #     test_results.untested_nodes.append(onnx_node.name)
-            #     test_results.untested_operations.add(onnx_node.op_type)
+            # 1. Perform tests to see whether the two layers (pytorch and keras)
+            # are outputting the same value and shape
+            test_layer: t.Callable = _test_operation if op_testing_fn is None else op_testing_fn
+            is_tested = test_layer(onnx_node, input_layer, keras_layer, *args, **kwargs)
+
+            # Add test data
+            if is_tested:
+                test_results.tested_nodes.append(onnx_node.name)
+                test_results.tested_operations.add(onnx_node.op_type)
+            else:
+                test_results.untested_nodes.append(onnx_node.name)
+                test_results.untested_operations.add(onnx_node.op_type)
 
             return keras_tensor
 

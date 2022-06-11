@@ -1,9 +1,11 @@
+import copy
 import logging
 import typing as t
 
 import numpy as np
 import onnx.checker
 import onnx.helper
+import onnxruntime
 import tensorflow as tf
 from tensorflow import keras
 import torch
@@ -13,7 +15,7 @@ import torch.nn as nn
 _LOGGER = logging.getLogger('util::Test')
 
 
-def test_model_output(pytorch_model: torch.nn.Module,
+def test_model_output(source_model: t.Union[nn.Module, onnxruntime.InferenceSession],
                       keras_model: tf.keras.Model,
                       pt_input_shape: t.Tuple,
                       keras_input_shape: t.Tuple,
@@ -23,59 +25,80 @@ def test_model_output(pytorch_model: torch.nn.Module,
     An error will be asserted if the generated inputs are not close
     or are of different dimensions.
     Args:
-        pytorch_model: The source PyTorch Model
+        source_model: The source PyTorch / Onnx model
         keras_model: The target / generated Keras model
         pt_input_shape: The dimension of the PyTorch input data
         keras_input_shape: The dimension of the Keras input data
         atol: The absolute tolerance parameter specified in numpy.
         See numpy documentation for more information
     """
+    # Create TensorFlow input
+    random_tensor_source = np.random.randn(*pt_input_shape).astype(np.float32)
+    random_tensor_keras = random_tensor_source
+    if len(random_tensor_source.shape) == 4:
+        random_tensor_keras = random_tensor_keras.transpose((0, 2, 3, 1))
 
-    x_keras = tf.ones(keras_input_shape)
-    x_pt = torch.ones(pt_input_shape)
-
-    output_pt = pytorch_model(x_pt)
+    x_keras = tf.convert_to_tensor(random_tensor_keras)
     output_keras = keras_model(x_keras)
 
-    if isinstance(output_pt, (t.Tuple, t.List)):
-        for pt_tensor, keras_tensor in zip(output_pt, output_keras):
-            test_equality(pt_tensor, keras_tensor, atol)
+    # Handle inputs :)
+    # PyTorch / onnx inference
+    if isinstance(source_model, nn.Module):
+        x_pt = torch.from_numpy(random_tensor_source)
+        output_source = source_model(x_pt)
+    # Onnxruntime inference
+    elif isinstance(source_model, onnxruntime.InferenceSession):
+        output_source = source_model.run(None, {'input_0': random_tensor_source})
+        # Onnx output is a list, so we flatten it if output length is 1
+        if len(output_source) == 1:
+            output_source = output_source[0]
     else:
-        test_equality(output_pt, output_keras, atol)
+        raise ValueError('Source model must be a PyTorch model on onnxruntime InferenceSession')
+
+    # For multiple outputs
+    if isinstance(output_source, (t.Tuple, t.List)):
+        for source_tensor, keras_tensor in zip(output_source, output_keras):
+            if isinstance(source_tensor, torch.Tensor):
+                source_tensor = source_tensor.detach().cpu().numpy()
+            test_equality(source_tensor, keras_tensor.numpy(), atol)
+    # Single outputs
+    else:
+        if isinstance(output_source, torch.Tensor):
+            output_source = output_source.detach().cpu().numpy()
+        test_equality(output_source, output_keras, atol)
 
 
-def test_equality(output_pt: nn.Module, output_keras: tf.keras.Model, atol: float = 1e-4):
+def test_equality(output_source: np.ndarray, output_keras: np.ndarray, atol: float = 1e-4):
     """
     Test the outputs of the two models for equality.
     Args:
-        output_pt: The output of a PyTorch model
+        output_source: The output of a PyTorch model
         output_keras: The output of the converted Keras model
         atol: The absolute tolerance parameter specified in numpy.
     """
-    if len(output_pt.shape) == 4:
-        output_pt = output_pt.permute(0, 2, 3, 1)
+    if len(output_source.shape) == 4:
+        output_source = output_source.transpose((0, 2, 3, 1))
 
-    output_pt = output_pt.cpu().detach().numpy()
-    output_keras = output_keras.numpy()
+    print(f'source shape: {output_source.shape}, keras shape: {output_keras.shape}')
 
     # batch dimension may have been removed for PyTorch model using flatten
-    if len(output_pt.shape) == len(output_keras.shape) - 1:
-        for pt_dim, keras_dim in zip(output_pt.shape, output_keras.shape[1:]):
+    if len(output_source.shape) == len(output_keras.shape) - 1:
+        for pt_dim, keras_dim in zip(output_source.shape, output_keras.shape[1:]):
             assert pt_dim == keras_dim, 'Batch dimension may have been removed from PyTorch model, but ' \
                                         f'the input dimensions still dont match. ' \
-                                        f'PT shape: {output_pt.shape}' \
+                                        f'PT shape: {output_source.shape}' \
                                         f'Keras shape: {output_keras.shape}'
         _LOGGER.warning('Batch dimension may have possibly been removed from PyTorch model. '
                         'Does your model use nn.Flatten() or torch.flatten() with start_dim=1 ?')
     else:
-        assert output_pt.shape == output_keras.shape, 'PyTorch and Keras model output shape should be equal. ' \
-                                                      f'PT shape: {output_pt.shape}, ' \
+        assert output_source.shape == output_keras.shape, 'PyTorch and Keras model output shape should be equal. ' \
+                                                      f'PT shape: {output_source.shape}, ' \
                                                       f'Keras shape: {output_keras.shape}'
 
     # Average diff over all axis
-    average_diff = np.mean(output_pt - output_keras)
+    average_diff = np.mean(output_source - output_keras)
 
-    output_is_approximately_equal = np.allclose(output_pt, output_keras, atol=atol)
+    output_is_approximately_equal = np.allclose(output_source, output_keras, atol=atol)
     assert output_is_approximately_equal, f'PyTorch output and Keras output is different. ' \
                                           f'Mean difference: {average_diff}'
 

@@ -63,14 +63,14 @@ if __name__ == '__main__':
     height_width = 224
 
     # Generate dummy inputs
-    x_keras = tf.random.normal((1, height_width, height_width, 3))
+    x_keras = tf.random.normal((1, 224, 112, 3))
     # input dimensions for PyTorch are BCHW, whereas TF / Keras default is BHWC
-    x_pt = torch.from_numpy(deepcopy(x_keras.numpy()))
+    x_pt = torch.from_numpy(deepcopy(x_keras.numpy())).permute(0, 3, 1, 2)
 
     print(f'pt shape: {x_pt.shape}, x_keras.shape: {x_keras.shape}')
 
     # Convert the model
-    converter = Pt2Keras('efficientnet_s_google.onnx', x_pt.shape)
+    converter = Pt2Keras('__8792818407915__.onnx', x_pt.shape)
     # Set to debug to read information
     converter.set_logging_level(logging.DEBUG)
 

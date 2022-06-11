@@ -75,9 +75,14 @@ class Graph:
             onnx.checker.check_model(self.onnx_model)
             if os.path.exists(hash_str):
                 os.remove(hash_str)
+
+            # Test model for equality
+            self._LOGGER.debug('Testing for equality --- PyTorch vs Onnx')
+            # output_ort = self.ort_session.run(None, {"input_0": dummy_input})
+            # output_pt = output.detach().cpu().numpy()
         elif isinstance(self.model, str):
             self.onnx_model = onnx.load(model)
-            self.ort_session = ort.InferenceSession(model)
+            self.model = ort.InferenceSession(model)
         else:
             raise ValueError(f'Invalid model type: {self.model}. Please pass in '
                              f'PyTorch model or onnx model string path.')
@@ -90,6 +95,9 @@ class Graph:
         self.node_dict = OrderedDict()
         # The computational graph value we are building up
         self.computational_graph = {}
+
+        # Node dict for quick access to nodes
+        self.moo = {}
 
         # initialization phase:
         # ------------------------------------------------------
@@ -124,6 +132,7 @@ class Graph:
         for node in self.onnx_model.graph.node:
             key = node.name
             onnx_node_obj = OnnxNode(node)
+            self.moo[key] = node
             self.node_dict[key] = onnx_node_obj
 
             # Print node information
@@ -225,10 +234,11 @@ class Graph:
         if len(output_list) > 1:
             outputs = output_list
 
+        print(f'Nodes: {len(self.moo.values())}, computational graph: {len(self.computational_graph.values())}')
         model = keras.Model(inputs, outputs)
         # Test the Keras model output.
         # Error will be asserted if the output dimensions or values are very different.
-        # test_model_output(self.model, model, self.pytorch_input_shape, input_shape)
+        test_model_output(self.model, model, self.pytorch_input_shape, input_shape)
         return model
 
     def _initialize_weights(self):
@@ -254,12 +264,14 @@ class Graph:
             # not only weights, but constant values from constant nodes such as
             # when we do element-wise additional to a constant
             self.computational_graph[name] = np_weights
-
             print(f'Weights for layer: {name}, {np_weights.shape}')
-
             self.weights[name] = {
                 'weights': np_weights
             }
+
+            # Add to node lookup table
+            if name not in self.moo:
+                self.moo[name] = np_weights
 
         # move Weights to node for convenience
         for node in self.node_dict.values():
