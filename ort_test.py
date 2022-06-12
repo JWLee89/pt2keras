@@ -4,7 +4,11 @@ from onnx import helper
 import onnx
 import onnxruntime as ort
 
-session = ort.InferenceSession('__8792818407915__.onnx')
+# session = ort.InferenceSession('__8792818407915__.onnx')
+model = onnx.load_model('__8792818407915__.onnx')
+
+session = ort.InferenceSession(model.SerializeToString())
+
 print(f'Session: {session}')
 
 dummy = np.ones((1, 3, 224, 112), dtype=np.float32)
@@ -61,12 +65,14 @@ graph_def = helper.make_graph(
 
 # Create the model (ModelProto)
 model_def = helper.make_model(graph_def, producer_name='onnx-example')
-
-print('The model is:\n{}'.format(model_def))
-onnx.checker.check_model(model_def)
-print('The model is checked!')
-
-
+#
+# print('The model is:\n{}'.format(model_def))
+# onnx.checker.check_model(model_def)
+# print('The model is checked!')
+#
+# yee = ort.InferenceSession(model_def.SerializeToString())
+# print(f'Yeee: {yee}')
+#
 print(f'Results: {results[0].shape}')
 
 

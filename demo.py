@@ -17,15 +17,15 @@ class DummyModel(nn.Module):
         # These can all be found using named_modules() or children()
         self.conv = nn.Sequential(
             nn.Conv2d(3, 32, (3, 3), stride=(1, 1), padding=(1, 1), groups=1, bias=True),
-            nn.SiLU(),
+            nn.ReLU(),
             # Downsample
             nn.Conv2d(32, 64, (3, 3), stride=(1, 1), padding=(1, 1), dilation=(1, 1), groups=1, bias=True),
-            nn.SiLU(),
+            nn.ReLU(),
 
-            # nn.Conv2d(64, 128, (1, 1), stride=(2, 2), padding=(0, 0), groups=1, dilation=(1, 1), bias=False),
+            nn.Conv2d(64, 128, (1, 1), stride=(2, 2), padding=(0, 0), groups=1, dilation=(1, 1), bias=False),
 
             # nn.Conv2d(3, 32, (3, 3), stride=(2, 2), padding=(1, 1), groups=1, bias=True),
-            # nn.SiLU(),
+            nn.ReLU(),
             # nn.Conv2d(32, 32, (3, 3), stride=(1, 1), padding=(1, 1), groups=32, dilation=(1, 1),  bias=True),
             # nn.SiLU(),
             # nn.ConvTranspose2d(32, 64, (3, 3), (2, 2), padding=(1, 1))
@@ -46,7 +46,6 @@ class DummyModel(nn.Module):
         new_path = self.avg_pool(output)
         output = torch.flatten(new_path, start_dim=1)
         # output = new_path.view(-1, 64)
-        output = self.linear(output)
         # output = torch.flatten(new_path)
         return output
         # return output[:, :, 2, 4]
@@ -60,6 +59,7 @@ if __name__ == '__main__':
     # Test pt2keras on EfficientNet_b0
     # model = DummyModel()
     model = efficientnet_b0().eval()
+    # model = resnet18()
     height_width = 224
 
     # Generate dummy inputs
@@ -70,7 +70,7 @@ if __name__ == '__main__':
     print(f'pt shape: {x_pt.shape}, x_keras.shape: {x_keras.shape}')
 
     # Convert the model
-    converter = Pt2Keras('__8792818407915__.onnx', x_pt.shape)
+    converter = Pt2Keras(model, x_pt.shape)
     # Set to debug to read information
     converter.set_logging_level(logging.DEBUG)
 

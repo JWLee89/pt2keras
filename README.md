@@ -74,6 +74,14 @@ if __name__ == '__main__':
                                           f'Mean difference: {average_diff}'
 ```
 
+## Updates
+
+The model now supports onnx inputs. 
+However, the onnx model must perform operations PyTorch style.
+E.g. Model input must be in the form (Batch, Channel, Height, Width).
+
+In a later version, support for other forms will be added ... 
+
 ## License
 
 This software is covered by the MIT license.

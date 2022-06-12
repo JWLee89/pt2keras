@@ -38,8 +38,8 @@ def add(node: OnnxNode, input_layer, lhs, rhs):
     logger = logging.getLogger('ops::Add')
     try:
         if not isinstance(lhs, np.ndarray) and not isinstance(rhs, np.ndarray):
-            add = keras.layers.Add()
-            output = add([lhs, rhs])
+            output_layer = keras.layers.Add()
+            output = output_layer([lhs, rhs])
         else:
             raise ValueError('Operands are different.')
 
@@ -50,15 +50,14 @@ def add(node: OnnxNode, input_layer, lhs, rhs):
             # Import statement needs to be included when exporting models
             # to another format such as EdgeTPU
             import tensorflow as tf
-            print(x[0], x[1])
             layer = tf.add(
                 x[0],
                 x[1]
             )
             return layer
 
-        lambda_layer = keras.layers.Lambda(target_layer)
-        output = lambda_layer([lhs, rhs])
+        output_layer = keras.layers.Lambda(target_layer)
+        output = output_layer([lhs, rhs])
 
     return output, None
 
@@ -77,10 +76,10 @@ def multiply(node: OnnxNode, input_layer, lhs, rhs):
 
     """
     logger = logging.getLogger('ops::Mul')
+    output_layer = None
     try:
-        mul = keras.layers.Multiply()
-        print(f'LHS: {lhs.shape}, RHS: {rhs.shape}')
-        output = mul([lhs, rhs])
+        output_layer = keras.layers.Multiply()
+        output = output_layer(lhs, rhs)
     except (IndexError, ValueError):
         logger.debug('Failed to use keras.layers.Multiply. Fallback to TF lambda.')
 
@@ -94,9 +93,10 @@ def multiply(node: OnnxNode, input_layer, lhs, rhs):
             )
             return layer
 
-        mul = keras.layers.Lambda(target_layer)
-        output = mul([lhs, rhs])
-    return output, None
+        output_layer = keras.layers.Lambda(target_layer)
+        output = output_layer([lhs, rhs])
+        output_layer = None
+    return output, output_layer
 
 
 @converter('Div')

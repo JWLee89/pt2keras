@@ -82,7 +82,8 @@ class Graph:
             # output_pt = output.detach().cpu().numpy()
         elif isinstance(self.model, str):
             self.onnx_model = onnx.load(model)
-            self.model = ort.InferenceSession(model)
+            onnx.checker.check_model(self.onnx_model)
+            self.model = ort.InferenceSession(self.onnx_model.SerializeToString())
         else:
             raise ValueError(f'Invalid model type: {self.model}. Please pass in '
                              f'PyTorch model or onnx model string path.')
@@ -95,9 +96,6 @@ class Graph:
         self.node_dict = OrderedDict()
         # The computational graph value we are building up
         self.computational_graph = {}
-
-        # Node dict for quick access to nodes
-        self.moo = {}
 
         # initialization phase:
         # ------------------------------------------------------
@@ -132,7 +130,6 @@ class Graph:
         for node in self.onnx_model.graph.node:
             key = node.name
             onnx_node_obj = OnnxNode(node)
-            self.moo[key] = node
             self.node_dict[key] = onnx_node_obj
 
             # Print node information
@@ -234,7 +231,6 @@ class Graph:
         if len(output_list) > 1:
             outputs = output_list
 
-        print(f'Nodes: {len(self.moo.values())}, computational graph: {len(self.computational_graph.values())}')
         model = keras.Model(inputs, outputs)
         # Test the Keras model output.
         # Error will be asserted if the output dimensions or values are very different.
@@ -245,14 +241,6 @@ class Graph:
         for weight in self.onnx_model.graph.initializer:
             name = weight.name
             np_weights = numpy_helper.to_array(weight)
-            # if len(np_weights.shape) == len(self.source_format):
-            #     Graph._LOGGER.info(f'Transposing weights: {name}')
-            #     # H,W,IC,OC
-            #     np_weights = np_weights.transpose([2, 3, 1, 0])
-
-            # Note tht we can also check whether the initialize is actually a weight
-            # or a constant by checking what the name endswith
-            # is_weight = name.endswith('weight') or name.endswith('bias')
 
             # operations such as the division in
             # (output + 6 * 3) / 3
@@ -264,23 +252,15 @@ class Graph:
             # not only weights, but constant values from constant nodes such as
             # when we do element-wise additional to a constant
             self.computational_graph[name] = np_weights
-            print(f'Weights for layer: {name}, {np_weights.shape}')
             self.weights[name] = {
                 'weights': np_weights
             }
-
-            # Add to node lookup table
-            if name not in self.moo:
-                self.moo[name] = np_weights
 
         # move Weights to node for convenience
         for node in self.node_dict.values():
             for input_node in node.input_nodes:
                 if input_node in self.weights:
                     node.weights.append(self.weights[input_node]['weights'])
-
-        # Remove weights dictionary, since it is no longer needed
-        del self.weights
 
         self._LOGGER.info(f'Built computational graph: {self.computational_graph.keys()}')
 

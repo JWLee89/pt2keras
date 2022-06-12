@@ -1,4 +1,3 @@
-import copy
 import logging
 import typing as t
 
@@ -13,6 +12,32 @@ import torch.nn as nn
 
 
 _LOGGER = logging.getLogger('util::Test')
+
+
+def keras_4d_to_pt_shape(input_data: np.ndarray) -> t.Tuple:
+    """
+    Given an input data, if it is a 4d input,
+    such as an image or conv intermediate feature,
+    we assume that input data is Keras format
+    (B, H, W, C) and we will convert to PyTorch:
+    (B, C, H, W).
+    Args:
+        input_data: The input data we will be transforming.
+    Returns:
+        The converted data
+    """
+    if len(input_data.shape) != 4:
+        return input_data.shape
+
+    if isinstance(input_data, np.ndarray):
+        #  (B, H, W, C) ->  (B, C, H, W)
+        output_data = input_data.transpose((0, 3, 1, 2))
+    elif keras.backend.is_keras_tensor(input_data):
+        output_data = tf.transpose(input_data, (0, 3, 1, 2))
+    else:
+        raise ValueError('keras_4d_to_pt only accepts Numpy ndarray or KerasTensor')
+
+    return output_data.shape
 
 
 def test_model_output(source_model: t.Union[nn.Module, onnxruntime.InferenceSession],
