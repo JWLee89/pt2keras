@@ -1,10 +1,11 @@
 import logging
 import os
+import pathlib
 import typing as t
 
-import onnx
 import torch.nn as nn
 
+from pt2keras.core.util import get_project_root
 
 class Pt2Keras:
 
@@ -47,18 +48,14 @@ class Pt2Keras:
     @intermediate_rep.setter
     def intermediate_rep(self, value):
         # Import all converters
-        if value == 'onnx':
-            for entry in os.scandir('pt2keras/core/onnx/convert'):
+        converter_directory_path = f'{get_project_root()}/pt2keras/core/onnx/convert'
+        if value in ['onnx', 'pytorch']:
+            for entry in os.scandir(converter_directory_path):
                 if entry.is_file():
+                    # remove '.py' from import statement
                     string = f'from pt2keras.core.onnx.convert import {entry.name}'[:-3]
                     exec(string)
             from pt2keras.core.onnx.graph import Graph
-        elif value == 'pytorch':
-            for entry in os.scandir('pt2keras/core/pytorch/convert'):
-                if entry.is_file():
-                    string = f'from pt2keras.core.pytorch.convert import {entry.name}'[:-3]
-                    exec(string)
-            from pt2keras.core.pytorch.graph import Graph
         else:
             raise ValueError('Invalid property')
         self.graph = Graph(self.model, self.input_shape)

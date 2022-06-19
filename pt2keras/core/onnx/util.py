@@ -104,8 +104,6 @@ def test_equality(output_source: np.ndarray, output_keras: np.ndarray, atol: flo
     if len(output_source.shape) == 4:
         output_source = output_source.transpose((0, 2, 3, 1))
 
-    print(f'source shape: {output_source.shape}, keras shape: {output_keras.shape}')
-
     # batch dimension may have been removed for PyTorch model using flatten
     if len(output_source.shape) == len(output_keras.shape) - 1:
         for pt_dim, keras_dim in zip(output_source.shape, output_keras.shape[1:]):

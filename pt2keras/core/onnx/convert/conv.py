@@ -20,10 +20,6 @@ def conv(node: OnnxNode, input_layer, *inputs):
     weights, bias = None, None
     weights = node.weights[0]
     bias = None if len(node.weights) != 2 else node.weights[1]
-    __ = to_tf(inputs[0], name=f'{node.name}_const')
-
-    print(f'Conv input: {__.shape}, input shape: {input_layer.shape}, node name: {node.name}')
-
     attributes: t.Dict = node.attributes
     has_bias = bias is not None
     n_groups = attributes['group'] if 'group' in attributes else 1
@@ -129,11 +125,6 @@ def conv(node: OnnxNode, input_layer, *inputs):
             weights=[weights, bias] if has_bias else [weights],
             activation=None,
         )
-        print(f'Weights ------ {node.name}: input layer: {input_layer}, '
-              f'layer: {output_layer},')
-        print(f'Inputs:')
-        for d in inputs:
-            print(f'SHAPE: {d.shape}, stride: {strides[0], strides[1]}')
         outputs = output_layer(input_layer)
 
     return outputs, output_layer
