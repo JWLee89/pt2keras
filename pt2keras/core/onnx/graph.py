@@ -28,7 +28,7 @@ class Graph:
     def __init__(self,
                  model: t.Union[nn.Module, str, onnx.ModelProto],
                  input_shape: t.Tuple,
-                 opset_version: int = 13):
+                 opset_version: int = 12):
         """
         By default the onnx graph is designed to convert PyTorch onnx
         models to Keras. By making small modifications and writing converters,
@@ -96,23 +96,6 @@ class Graph:
         self.computational_graph = {}
         # This is for accessing keras input cache
         self.forward_input_cache = {}
-
-        weights = {}
-        for onnx_w in self.onnx_model.graph.initializer:
-            try:
-                if len(onnx_w.ListFields()) < 4:
-                    onnx_extracted_weights_name = onnx_w.ListFields()[1][1]
-                else:
-                    onnx_extracted_weights_name = onnx_w.ListFields()[2][1]
-                weights[onnx_extracted_weights_name] = numpy_helper.to_array(onnx_w)
-            except:
-                onnx_extracted_weights_name = onnx_w.ListFields()[3][1]
-                weights[onnx_extracted_weights_name] = numpy_helper.to_array(onnx_w)
-
-            print('-------------moo-----------------')
-            print('Found weight {0} with shape {1}.'.format(
-                onnx_extracted_weights_name,
-                weights[onnx_extracted_weights_name].shape))
 
         # initialization phase:
         # ------------------------------------------------------
@@ -199,6 +182,7 @@ class Graph:
         # Convert the model
         for node_key, node in self.node_dict.items():
             op_type = node.op_type
+
             if op_type not in self._SUPPORTED_OPERATIONS:
                 unsupported_ops.add(op_type)
                 has_unsupported_ops = True
@@ -207,22 +191,28 @@ class Graph:
             # does not have all the necessary converters.
             # Users can extend the library by adding the required support
             # without modifying the library directly
-            if has_unsupported_ops:
+            # -----------------------------------------------
+            # Constant nodes have no input
+            if has_unsupported_ops or node.name.startswith('Constant'):
                 continue
 
             conversion_func = self._SUPPORTED_OPERATIONS[op_type]
             node_inputs = []
+
+            # add inputs
             for input_node in node.input_nodes:
                 if input_node in self.computational_graph:
                     node_inputs.append(self.computational_graph[input_node])
 
-            # retrieve previous
-            if node.input_nodes[0] in self.forward_input_cache:
-                input_keras_layer = self.forward_input_cache[node.input_nodes[0]]
+            input_node_name = node.input_nodes[0]
+            # retrieve previous layer
+            if input_node_name in self.forward_input_cache:
+                input_keras_layer = self.forward_input_cache[input_node_name]
+            # Is a weight node
             else:
-                input_keras_layer = self.computational_graph[node.input_nodes[0]]
+                input_keras_layer = self.computational_graph[input_node_name]
+
             # Convert to keras
-            # print(f'Input node: {node.name}, conversion_func: {outputs}')
             outputs = conversion_func(node, input_keras_layer, self.computational_graph,
                                       self.node_dict, self.test_stats, *node_inputs)
 

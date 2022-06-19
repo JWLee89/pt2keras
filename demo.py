@@ -65,10 +65,11 @@ if __name__ == '__main__':
     from copy import deepcopy
     import numpy as np
     from torchvision.models.resnet import resnet18
+    from torchvision.models.mobilenetv2 import mobilenet_v2
     # Test pt2keras on EfficientNet_b0
     # model = DummyModel()
     # model = efficientnet_b0().eval()
-    model = resnet18()
+    model = mobilenet_v2().eval()
     height_width = 224
 
     # Generate dummy inputs

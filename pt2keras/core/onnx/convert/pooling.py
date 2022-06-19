@@ -24,7 +24,7 @@ def global_average_pool(node: OnnxNode, _, input_tensor):
 
 
 @converter('MaxPool')
-def max_pool(node: OnnxNode, input_layer, input_tensor):
+def max_pool(node: OnnxNode, input_layer, _):
 
     attributes = node.attributes
     logger = logging.getLogger('onnx:max_pool')

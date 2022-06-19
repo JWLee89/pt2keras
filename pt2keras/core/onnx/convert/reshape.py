@@ -222,7 +222,6 @@ def slice_inputs(node: OnnxNode, _, *inputs):
 
 @converter('Unsqueeze')
 def unsqueeze(node: OnnxNode, _, *inputs):
-
     attributes = node.attributes
     input_data = inputs[0]
     print(f'Attributes: {attributes}')
@@ -239,7 +238,6 @@ def unsqueeze(node: OnnxNode, _, *inputs):
 
 @converter('Squeeze')
 def squeeze(node: OnnxNode, _, *inputs):
-
     input_0 = to_tf(inputs[0])
     attributes = node.attributes
 
@@ -267,4 +265,19 @@ def transpose(node: OnnxNode, input_layer, *inputs):
         output_layer = keras.layers.Permute(attributes['perm'][1:])
         output = output_layer(input_layer)
 
+    return output, output_layer
+
+
+@converter('Clip')
+def clip(node: OnnxNode, input_layer, *inputs):
+    # Second and third attributes are min, max values
+    min_val = inputs[1]
+    max_val = inputs[2]
+
+    def clip_layer(x):
+        from tensorflow import keras
+        return keras.backend.clip(x, min_val, max_val)
+
+    output_layer = keras.layers.Lambda(clip_layer)
+    output = output_layer(input_layer)
     return output, output_layer
