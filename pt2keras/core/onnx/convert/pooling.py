@@ -1,3 +1,5 @@
+import logging
+
 from tensorflow import keras
 
 from .common import converter
@@ -25,18 +27,21 @@ def global_average_pool(node: OnnxNode, _, input_tensor):
 def max_pool(node: OnnxNode, input_layer, input_tensor):
 
     attributes = node.attributes
+    logger = logging.getLogger('onnx:max_pool')
     kernel_shape = attributes['kernel_shape']
     stride_shape = attributes['strides']
     pads = attributes['pads'] if 'pads' in attributes else [0, 0, 0, 0, 0, 0]
     pad = 'valid'
 
+    logger.debug(f'MaxPool input layer: {input_layer}\n\n. Input tensor: {input_layer}')
+
     if all([shape % 2 == 1 for shape in kernel_shape]) and \
             all([kernel_shape[i] // 2 == pads[i] for i in range(len(kernel_shape))]) and \
             all([shape == 1 for shape in stride_shape]):
         pad = 'same'
-        print('Use `same` padding parameters.')
+        logger.debug('Use `same` padding parameters.')
     else:
-        print('Unable to use `same` padding. Add ZeroPadding2D layer to fix shapes.')
+        logger.debug('Unable to use `same` padding. Add ZeroPadding2D layer to fix shapes.')
         padding_name = node.name + '_pad'
         if len(kernel_shape) == 2:
             padding = None

@@ -10,7 +10,7 @@ from ..util import to_tf
 
 
 @converter('Reshape')
-def constant(node: OnnxNode, _, *inputs):
+def reshape(node: OnnxNode, _, *inputs):
     """
     A operation that reshapes the input array or layer.
     @credit to onnx2keras for the implementation
@@ -63,14 +63,10 @@ def constant(node: OnnxNode, _, *inputs):
                 reshape_target = np.int32(shape_arr)
                 logger.warning(f'Removing batch dimensions ... new shape: {reshape_target} ')
 
+            # Removing entire feature dimension. Output shape is : (feature_count,)
             if len(reshape_target) == 1 and reshape_target[0] == -1:
-                logger.debug('The first argument is Keras/tf layer. Apply keras.Flatten.')
-
-                # IMPORTANT
-                # We need to make the output channels first for the output to equal
-                # Otherwise, we will be performing the wrong flattening operation T_T
-                output_layer = keras.layers.Flatten()
-                output = output_layer(input_layer)
+                error_msg = 'Removing entire feature dimension (1-dim vector) ... This is not allowed in Keras.'
+                raise ValueError(error_msg)
             else:
                 output_layer = keras.layers.Reshape(reshape_target)
                 print(f'Input layer: {input_layer}, shape arr: {reshape_target}')
@@ -81,33 +77,17 @@ def constant(node: OnnxNode, _, *inputs):
 
 
 @converter('Flatten')
-def flatten(node: OnnxNode, input_layer, input_tensor):
-    print(f'input tensor: {input_tensor}')
-    return keras.layers.Flatten()(input_layer), keras.layers.Flatten()
-
-# @converter('Flatten')
-# def flatten(node: OnnxNode, input_layer, *input_tensor):
-#     logger = logging.getLogger('onnx::Flatten')
-#
-#     if len(input_tensor) != 1:
-#         raise AttributeError('Number of inputs is not equal 1 for flatten layer')
-#
-#     logger.debug(f'Convert Flatten ... {node}')
-#     input_tensor = input_tensor[0]
-#
-#     # Need to transpose, otherwise we get all sorts of funky errors ...
-#     def target_layer(x):
-#         import tensorflow as tf
-#         x = tf.transpose(x, [0, 3, 1, 2])
-#         return x
-#
-#     lambda_layer = keras.layers.Lambda(target_layer)
-#     new_input = lambda_layer(input_tensor)
-#
-#     output_layer = keras.layers.Reshape([-1])
-#     output = output_layer(new_input)
-#
-#     return output, output_layer
+def flatten(node: OnnxNode, input_layer, *input_tensor):
+    logger = logging.getLogger('onnx::Flatten')
+    if len(input_tensor) != 1:
+        raise AttributeError('Number of inputs is not equal to 1 for Flatten()')
+    logger.debug(f'Convert Flatten ... {node}')
+    input_tensor = input_tensor[0]
+    # Note: We are converting a PyTorch model into keras, so we need to flatten
+    # with channels first in mind ...
+    output_layer = keras.layers.Flatten(data_format='channels_first')
+    output = output_layer(input_tensor)
+    return output, output_layer
 
 
 @converter('Shape')

@@ -210,9 +210,11 @@ def to_tf(obj, fake_input_layer=None, name=None):
             if not isinstance(inp, (np.ndarray, np.generic)):
                 inp = np.array(inp, dtype=dtype)
             return tf.constant(inp, dtype=inp.dtype)
-
         lambda_layer = keras.layers.Lambda(target_layer, name=name)
-        return lambda_layer(fake_input_layer)
+        output = lambda_layer(fake_input_layer)
+        print(f' yeeeeeee : {output}')
+
+        return output
     else:
         return obj
 

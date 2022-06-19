@@ -4,6 +4,7 @@ from tensorflow import keras
 
 from .common import converter
 from ..graph import OnnxNode
+from ..util import to_tf
 
 
 @converter('Conv')
@@ -19,6 +20,9 @@ def conv(node: OnnxNode, input_layer, *inputs):
     weights, bias = None, None
     weights = node.weights[0]
     bias = None if len(node.weights) != 2 else node.weights[1]
+    __ = to_tf(inputs[0], name=f'{node.name}_const')
+
+    print(f'Conv input: {__.shape}, input shape: {input_layer.shape}, node name: {node.name}')
 
     attributes: t.Dict = node.attributes
     has_bias = bias is not None
@@ -52,7 +56,8 @@ def conv(node: OnnxNode, input_layer, *inputs):
     in_channels = channels_per_group * n_groups
 
     if n_groups == in_channels and n_groups != 1:
-        logger.info('Number of groups is equal to input channels, use DepthWise convolution')
+        logger.debug('Number of groups is equal to input channels, use DepthWise convolution. '
+                     f'Groups: {n_groups}, input channels: {in_channels}')
         weights = weights.transpose(0, 1, 3, 2)
 
         output_layer = keras.layers.DepthwiseConv2D(
@@ -72,7 +77,7 @@ def conv(node: OnnxNode, input_layer, *inputs):
         output_layer = None
 
     elif n_groups != 1:
-        logger.info('Number of groups more than 1, but less than number of in_channel, use group convolution')
+        logger.debug('Number of groups more than 1, but less than number of in_channel, use group convolution')
 
         # Example from https://kratzert.github.io/2017/02/24/finetuning-alexnet-with-tensorflow.html
         def target_layer(x, groups=n_groups, stride_y=strides[0], stride_x=strides[1]):
@@ -82,13 +87,13 @@ def conv(node: OnnxNode, input_layer, *inputs):
             def convolve_lambda_biased(i, k, b):
                 import tensorflow as tf
                 conv = tf.nn.conv2d(i, k, strides=[1, stride_y, stride_x, 1], dilations=[1, dilation, dilation, 1],
-                                    padding='VALID')
-                return tf.nn.bias_add(conv, b)
+                                    padding='VALID', data_format='NHWC')
+                return tf.nn.bias_add(conv, b, data_format='NHWC')
 
             def convolve_lambda(i, k):
                 import tensorflow as tf
                 return tf.nn.conv2d(i, k, strides=[1, stride_y, stride_x, 1], dilations=[1, dilation, dilation, 1],
-                                    padding='VALID')
+                                    padding='VALID', data_format='NHWC')
 
             input_groups = tf.split(axis=3, num_or_size_splits=groups, value=x)
             weight_groups = tf.split(axis=3, num_or_size_splits=groups, value=weights_shape)
@@ -107,10 +112,13 @@ def conv(node: OnnxNode, input_layer, *inputs):
         outputs = output_layer(input_layer)
 
     else:
-        logger.info(f'normal conv~~~~~~~~~~~~~~~~~~~~, weight shape: {node.weights[0].shape}, out channels: '
-                    f'{out_channels}, in_channels: {in_channels}, '
-                    f'Kernel_size: ({height}, {width}). '
-                    f'Dilation rate: {dilation}')
+        logger.debug(f'normal conv~~~~~~~~~~~~~~~~~~~~, weight shape: {node.weights[0].shape}, out channels: '
+                     f'{out_channels}, in_channels: {in_channels}, '
+                     f'Kernel_size: ({height}, {width}). '
+                     f'Groups: {n_groups}'
+                     f'Dilation rate: {dilation}')
+        logger.debug(f'Node: {node}')
+        logger.debug(f'Input shape: {input_layer.shape}, weight shape: {weights.shape}')
         output_layer = keras.layers.Conv2D(
             filters=out_channels,
             kernel_size=(height, width),  # filters
@@ -125,7 +133,7 @@ def conv(node: OnnxNode, input_layer, *inputs):
               f'layer: {output_layer},')
         print(f'Inputs:')
         for d in inputs:
-            print(f'SHAPE: {d.shape}')
+            print(f'SHAPE: {d.shape}, stride: {strides[0], strides[1]}')
         outputs = output_layer(input_layer)
 
     return outputs, output_layer

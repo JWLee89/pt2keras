@@ -1,4 +1,5 @@
 import logging
+import time
 import typing as t
 from functools import wraps
 
@@ -114,13 +115,16 @@ def _test_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inpu
         keras_input_data = onnx_tensor.transpose((0, 2, 3, 1))
     else:
         keras_input_data = onnx_tensor
-    print(f'Keras input data: {keras_input_data.shape}, onnx input data: {onnx_tensor.shape}')
-    print(f'Node name: {node_def.name}, input layer: {input_keras_layer}')
-    print(f'Inputs for {node.name}: ')
+    # print(f'Keras input data: {keras_input_data.shape}, onnx input data: {onnx_tensor.shape}')
+    # print(f'Node name: {node_def.name}, input layer: {input_keras_layer}')
+    # print(f'Inputs for {node.name}: ')
     for d in inputs:
         print(f'Input: {d.shape}')
 
-    keras_output = output_keras_layer(keras_input_data).numpy()
+    keras_start_time = time.monotonic()
+    keras_output = output_keras_layer(keras_input_data)
+    keras_runtime_ms = (time.monotonic() - keras_start_time) * 1000
+    keras_output = keras_output.numpy()
 
     # Create graph output node
     output_nodes = []
@@ -145,14 +149,20 @@ def _test_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inpu
 
     # Prepare session for inference
     onnx_session = ort.InferenceSession(model_def.SerializeToString())
+    onnx_start_time = time.monotonic()
     onnx_output = onnx_session.run(None, input_dict)
+    onnx_runtime_ms = (time.monotonic() - onnx_start_time) * 1000
+
+    _LOGGER.debug(f'Node: {node.name}, op: {node.op_type}. \n'
+                  f'onnxruntime speed: {onnx_runtime_ms} ms\n'
+                  f'keras speed: {keras_runtime_ms} ms')
 
     if len(onnx_output) == 1:
         onnx_output = onnx_output[0]
 
-    print(f'Onnx output: {onnx_output.shape}, keras output: {keras_output.shape}')
+    # print(f'Onnx output: {onnx_output.shape}, keras output: {keras_output.shape}')
 
-    # test_equality(onnx_output, keras_output)
+    test_equality(onnx_output, keras_output)
 
     return True
 

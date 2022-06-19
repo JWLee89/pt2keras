@@ -11,7 +11,6 @@ import torch.onnx
 from onnx.helper import printable_node
 
 from onnx import numpy_helper
-from onnx.helper import get_attribute_value
 from tensorflow import keras
 
 from .util import get_graph_input_shape, get_graph_output_shape, test_model_output
@@ -92,10 +91,28 @@ class Graph:
         # we will later need to test this with models that have multiple inputs
         self.output_names = [output['name'] for output in get_graph_output_shape(self.onnx_model.graph)]
 
-        self.weights = OrderedDict()
         self.node_dict = OrderedDict()
         # The computational graph value we are building up
         self.computational_graph = {}
+        # This is for accessing keras input cache
+        self.forward_input_cache = {}
+
+        weights = {}
+        for onnx_w in self.onnx_model.graph.initializer:
+            try:
+                if len(onnx_w.ListFields()) < 4:
+                    onnx_extracted_weights_name = onnx_w.ListFields()[1][1]
+                else:
+                    onnx_extracted_weights_name = onnx_w.ListFields()[2][1]
+                weights[onnx_extracted_weights_name] = numpy_helper.to_array(onnx_w)
+            except:
+                onnx_extracted_weights_name = onnx_w.ListFields()[3][1]
+                weights[onnx_extracted_weights_name] = numpy_helper.to_array(onnx_w)
+
+            print('-------------moo-----------------')
+            print('Found weight {0} with shape {1}.'.format(
+                onnx_extracted_weights_name,
+                weights[onnx_extracted_weights_name].shape))
 
         # initialization phase:
         # ------------------------------------------------------
@@ -136,18 +153,6 @@ class Graph:
             node_info = printable_node(node)
             self._LOGGER.debug(f'NODE::::: {node_info}')
 
-            if node.attribute:
-                for attribute in node.attribute:
-                    # INTS, FLOATS, etc
-                    type_data = get_attribute_value(attribute)
-                    # Try casting to numpy if possible
-                    try:
-                        data = numpy_helper.to_array(type_data)
-                        onnx_node_obj.attributes[attribute.name] = data
-                    # just save raw representation
-                    except:
-                        onnx_node_obj.attributes[attribute.name] = type_data
-
             # Constant nodes have no input and just single output
             # we need to extract constants
             if node.op_type == 'Constant':
@@ -166,7 +171,9 @@ class Graph:
 
         # For now, assume we are working with models that have a single input.
         # we will later need to test this with models that have multiple inputs
-        input_shape = get_graph_input_shape(self.onnx_model.graph, dims)[0]['shape']
+        input_data = get_graph_input_shape(self.onnx_model.graph, dims)[0]
+        input_shape = input_data['shape']
+        input_name = input_data['name']
 
         # First dimension = 0 is dynamic batching. We disallow those ...
         if input_shape[0] == 0:
@@ -177,6 +184,7 @@ class Graph:
         # Create input object to feed to the model.
         # This will need to change in the future if we want to support multiple inputs
         inputs = keras.Input(batch_shape=input_shape)
+        self.forward_input_cache[input_name] = inputs
         outputs = inputs
 
         # Store unsupported operations in a set so that
@@ -208,13 +216,20 @@ class Graph:
                 if input_node in self.computational_graph:
                     node_inputs.append(self.computational_graph[input_node])
 
+            # retrieve previous
+            if node.input_nodes[0] in self.forward_input_cache:
+                input_keras_layer = self.forward_input_cache[node.input_nodes[0]]
+            else:
+                input_keras_layer = self.computational_graph[node.input_nodes[0]]
             # Convert to keras
-            outputs = conversion_func(node, outputs, self.computational_graph,
+            # print(f'Input node: {node.name}, conversion_func: {outputs}')
+            outputs = conversion_func(node, input_keras_layer, self.computational_graph,
                                       self.node_dict, self.test_stats, *node_inputs)
+
+            self.forward_input_cache[node.name] = outputs
 
             # Add to output data if output_node found
             if node.output_nodes[0] in self.output_names:
-                print(f'output node: {node.output_nodes}, value: {outputs}')
                 output_list.append(outputs)
 
             Graph._LOGGER.info(f'Successfully converted: {node}')
@@ -252,15 +267,12 @@ class Graph:
             # not only weights, but constant values from constant nodes such as
             # when we do element-wise additional to a constant
             self.computational_graph[name] = np_weights
-            self.weights[name] = {
-                'weights': np_weights
-            }
 
         # move Weights to node for convenience
         for node in self.node_dict.values():
             for input_node in node.input_nodes:
-                if input_node in self.weights:
-                    node.weights.append(self.weights[input_node]['weights'])
+                if input_node in self.computational_graph:
+                    node.weights.append(self.computational_graph[input_node])
 
         self._LOGGER.info(f'Built computational graph: {self.computational_graph.keys()}')
 
@@ -307,6 +319,34 @@ class TestResults:
                f'Untested operations: {untested_operations} \n'
 
 
+def onnx_node_attributes_to_dict(attributes):
+    """
+    From: https://github.com/gmalivenko/onnx2keras/blob/master/onnx2keras/converter.py
+    Parse ONNX attributes to Python dictionary
+    Args:
+        attributes: The attributes from OnnxNode
+    """
+    def onnx_attribute_to_dict(onnx_attr):
+        """
+        Parse ONNX attribute
+        Args:
+            onnx_attr: ONNX attribute
+        Returns:
+            Python data type
+        """
+        if onnx_attr.HasField('t'):
+            return numpy_helper.to_array(getattr(onnx_attr, 't'))
+
+        for attr_type in ['f', 'i', 's']:
+            if onnx_attr.HasField(attr_type):
+                return getattr(onnx_attr, attr_type)
+
+        for attr_type in ['floats', 'ints', 'strings']:
+            if getattr(onnx_attr, attr_type):
+                return list(getattr(onnx_attr, attr_type))
+    return {arg.name: onnx_attribute_to_dict(arg) for arg in attributes}
+
+
 class OnnxNode:
     """
     A node in the onnx graph
@@ -318,10 +358,7 @@ class OnnxNode:
         self.input_nodes = node.input
         self.output_nodes = node.output
         self.weights = []
-        self.attributes = {}
-        # This is for unit testing
-        # Access to original ProtoBuf attributes
-        self.original_attribute = node.attribute
+        self.attributes = onnx_node_attributes_to_dict(node.attribute)
 
     def __repr__(self):
         return f'name: {self.name}: ' \
