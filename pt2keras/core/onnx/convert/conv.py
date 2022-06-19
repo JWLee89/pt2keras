@@ -1,10 +1,11 @@
 import logging
 import typing as t
+
 from tensorflow import keras
 
-from .common import converter
 from ..graph import OnnxNode
 from ..util import to_tf
+from .common import converter
 
 
 @converter('Conv')
@@ -39,11 +40,7 @@ def conv(node: OnnxNode, input_layer, *inputs):
     # This caused me a lot headache before figuring it out thanks to onnx2keras.
     if padding:
         padding_name = node.name + '_pad'
-        padding_layer = keras.layers.ZeroPadding2D(
-            padding=padding,
-            name=padding_name,
-            data_format='channels_last'
-        )
+        padding_layer = keras.layers.ZeroPadding2D(padding=padding, name=padding_name, data_format='channels_last')
         input_layer = padding_layer(input_layer)
 
     weights = weights.transpose(2, 3, 1, 0)
@@ -52,8 +49,10 @@ def conv(node: OnnxNode, input_layer, *inputs):
     in_channels = channels_per_group * n_groups
 
     if n_groups == in_channels and n_groups != 1:
-        logger.debug('Number of groups is equal to input channels, use DepthWise convolution. '
-                     f'Groups: {n_groups}, input channels: {in_channels}')
+        logger.debug(
+            'Number of groups is equal to input channels, use DepthWise convolution. '
+            f'Groups: {n_groups}, input channels: {in_channels}'
+        )
         weights = weights.transpose(0, 1, 3, 2)
 
         output_layer = keras.layers.DepthwiseConv2D(
@@ -69,8 +68,6 @@ def conv(node: OnnxNode, input_layer, *inputs):
             kernel_initializer='zeros',
         )
         outputs = output_layer(input_layer)
-        # skip test
-        output_layer = None
 
     elif n_groups != 1:
         logger.debug('Number of groups more than 1, but less than number of in_channel, use group convolution')
@@ -82,21 +79,36 @@ def conv(node: OnnxNode, input_layer, *inputs):
 
             def convolve_lambda_biased(i, k, b):
                 import tensorflow as tf
-                conv = tf.nn.conv2d(i, k, strides=[1, stride_y, stride_x, 1], dilations=[1, dilation, dilation, 1],
-                                    padding='VALID', data_format='NHWC')
+
+                conv = tf.nn.conv2d(
+                    i,
+                    k,
+                    strides=[1, stride_y, stride_x, 1],
+                    dilations=[1, dilation, dilation, 1],
+                    padding='VALID',
+                    data_format='NHWC',
+                )
                 return tf.nn.bias_add(conv, b, data_format='NHWC')
 
             def convolve_lambda(i, k):
                 import tensorflow as tf
-                return tf.nn.conv2d(i, k, strides=[1, stride_y, stride_x, 1], dilations=[1, dilation, dilation, 1],
-                                    padding='VALID', data_format='NHWC')
+
+                return tf.nn.conv2d(
+                    i,
+                    k,
+                    strides=[1, stride_y, stride_x, 1],
+                    dilations=[1, dilation, dilation, 1],
+                    padding='VALID',
+                    data_format='NHWC',
+                )
 
             input_groups = tf.split(axis=3, num_or_size_splits=groups, value=x)
             weight_groups = tf.split(axis=3, num_or_size_splits=groups, value=weights_shape)
             if has_bias:
                 bias_groups = tf.split(axis=0, num_or_size_splits=groups, value=bias)
-                output_groups = [convolve_lambda_biased(i, k, b) for i, k, b in
-                                 zip(input_groups, weight_groups, bias_groups)]
+                output_groups = [
+                    convolve_lambda_biased(i, k, b) for i, k, b in zip(input_groups, weight_groups, bias_groups)
+                ]
             else:
                 output_groups = [convolve_lambda(i, k) for i, k in zip(input_groups, weight_groups)]
 
@@ -108,13 +120,6 @@ def conv(node: OnnxNode, input_layer, *inputs):
         outputs = output_layer(input_layer)
 
     else:
-        logger.debug(f'normal conv~~~~~~~~~~~~~~~~~~~~, weight shape: {node.weights[0].shape}, out channels: '
-                     f'{out_channels}, in_channels: {in_channels}, '
-                     f'Kernel_size: ({height}, {width}). '
-                     f'Groups: {n_groups}'
-                     f'Dilation rate: {dilation}')
-        logger.debug(f'Node: {node}')
-        logger.debug(f'Input shape: {input_layer.shape}, weight shape: {weights.shape}')
         output_layer = keras.layers.Conv2D(
             filters=out_channels,
             kernel_size=(height, width),  # filters
@@ -144,9 +149,11 @@ def conv_transpose(node: OnnxNode, input_layer, *node_inputs):
     attributes: t.Dict = node.attributes
     weights_shape = node.weights[0].shape
     filter_count = weights_shape[-2]
-    padding = 'same' if attributes['pads'][0] != 0 \
-                        and attributes['pads'][1] != 0 \
-                        and attributes['pads'][1] == attributes['pads'][0] else 'valid'
+    padding = (
+        'same'
+        if attributes['pads'][0] != 0 and attributes['pads'][1] != 0 and attributes['pads'][1] == attributes['pads'][0]
+        else 'valid'
+    )
 
     outputs = keras.layers.Conv2DTranspose(
         filter_count,  # filters

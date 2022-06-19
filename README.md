@@ -100,15 +100,17 @@ ValueError: Failed to convert model. The following operations are currently unsu
 
 Answer: This means that the `AveragePool` operator is currently not supported.
 The framework can be extended without modifying the source code by adding the converter using the following decorator.
+The example below is how to override the existing `ReLU` operation.
 
 ```python
-from pt2keras.core.onnx.convert.common import converter
+from pt2keras import converter
 
-@converter('AveragePool')
-def average_pool_implementation(node, keras_input_layers, *inputs):
-    # Write your implementation here
-    pass
 
+@converter('Relu', override=True)
+def add(onnx_node, input_tensor, *inputs):
+    print('overriding ReLU')
+    from tensorflow import keras
+    return keras.activations.relu(input_tensor)
 
 ```
 

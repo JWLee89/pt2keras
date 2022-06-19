@@ -5,8 +5,8 @@ from functools import wraps
 
 import numpy as np
 import onnx
-from onnx import helper
 import onnxruntime as ort
+from onnx import helper
 
 from pt2keras.core.onnx.graph import Graph, OnnxNode, TestResults
 from pt2keras.core.onnx.util import keras_4d_to_pt_shape, test_equality
@@ -23,7 +23,97 @@ class DuplicateOperatorConverterError(Exception):
     create a converter with the override=True explicitly set to mark that
     the user is fully aware that they are overriding an existing converter.
     """
+
     pass
+
+
+def _test_double_input_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inputs) -> bool:
+
+    if len(inputs) != 2:
+        raise ValueError(f'Expected two inputs, received: {len(inputs)} inputs')
+
+    # create the computational node graph
+    node_def = helper.make_node(
+        node.op_type, name=node.name, inputs=node.input_nodes, outputs=node.output_nodes, **node.attributes
+    )
+
+    # Create graph input node
+    input_nodes = []
+    # For storing input dict for onnx runtime inference
+    input_dict = {}
+    start_index = 0
+    for i in range(start_index, len(node.input_nodes)):
+        input_node_name = node.input_nodes[i]
+        onnx_input_data = inputs[i - start_index]
+        input_shape = onnx_input_data.shape
+        if not isinstance(onnx_input_data, np.ndarray):
+            if len(input_shape) == 4:
+                data_to_input = onnx_input_data
+                input_shape = keras_4d_to_pt_shape(data_to_input)
+            else:
+                data_to_input = onnx_input_data
+                input_shape = onnx_input_data.shape
+        else:
+            data_to_input = onnx_input_data
+            input_shape = onnx_input_data.shape
+        # Do not add numpy data again if it is not needed.
+        input_dict[input_node_name] = data_to_input
+        value = helper.make_tensor_value_info(input_node_name, onnx.AttributeProto.FLOAT, input_shape)
+        input_nodes.append(value)
+
+    onnx_input_dict = {}
+    keras_input_list = []
+    for key, value in input_dict.items():
+        onnx_input_dict[key] = np.random.rand(*keras_4d_to_pt_shape(value)).astype(np.float32)
+        keras_input = onnx_input_dict[key]
+        if len(onnx_input_dict[key].shape) == 4:
+            keras_input = keras_input.transpose((0, 2, 3, 1))
+
+        keras_input_list.append(keras_input)
+
+    keras_start_time = time.monotonic()
+    keras_output = output_keras_layer(keras_input_list)
+    keras_runtime_ms = (time.monotonic() - keras_start_time) * 1000
+    keras_output = keras_output.numpy()
+
+    # Create graph output node
+    output_nodes = []
+    for i, output in enumerate(node.output_nodes):
+        output_shape = keras_4d_to_pt_shape(keras_output)
+        value = helper.make_tensor_value_info(output, onnx.AttributeProto.FLOAT, output_shape)
+        output_nodes.append(value)
+
+    # # Create the graph (GraphProto)
+    graph_def = helper.make_graph(
+        [node_def],  # nodes
+        'test-model',  # name
+        input_nodes,  # inputs
+        output_nodes,  # outputs
+    )
+
+    # Create Model
+    model_def = helper.make_model(graph_def, producer_name='test_layer')
+    # Set opset version. Hardcode this Jawn for now
+    model_def.opset_import[0].version = 13
+    onnx.checker.check_model(model_def)
+
+    # Prepare session for inference
+    onnx_session = ort.InferenceSession(model_def.SerializeToString())
+    onnx_start_time = time.monotonic()
+    onnx_output = onnx_session.run(None, onnx_input_dict)
+    onnx_runtime_ms = (time.monotonic() - onnx_start_time) * 1000
+
+    _LOGGER.debug(
+        f'Node: {node.name}, op: {node.op_type}. \n'
+        f'onnxruntime speed: {onnx_runtime_ms} ms\n'
+        f'keras speed: {keras_runtime_ms} ms'
+    )
+
+    if len(onnx_output) == 1:
+        onnx_output = onnx_output[0]
+
+    test_equality(onnx_output, keras_output, node=node)
+    return True
 
 
 def _test_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inputs) -> bool:
@@ -39,13 +129,11 @@ def _test_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inpu
     Returns:
         True if tested, otherwise return False.
     """
-    global _padding_offset_width, _padding_offset_height
     if output_keras_layer is None:
         if node.op_type == 'Constant':
             _LOGGER.debug(f'Skipping test for Constant node: {node}')
         else:
-            _LOGGER.warning(f'Output keras layer not available for: {node}. '
-                            f'Skipping test.')
+            _LOGGER.warning(f'Output keras layer not available for: {node}. ' f'Skipping test.')
         return False
 
     # Create attributes for making node for onnxruntime inference
@@ -60,11 +148,9 @@ def _test_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inpu
             attrs[key] = attribute_val
 
     # create the computational node graph
-    node_def = helper.make_node(node.op_type,
-                                name=node.name,
-                                inputs=node.input_nodes,
-                                outputs=node.output_nodes,
-                                **attrs)
+    node_def = helper.make_node(
+        node.op_type, name=node.name, inputs=node.input_nodes, outputs=node.output_nodes, **attrs
+    )
 
     # Create graph input node
     input_nodes = []
@@ -107,6 +193,7 @@ def _test_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inpu
             onnx_tensor = value
         break
 
+    # TODO: Make sure that we can receive multiple inputs
     if node_to_update:
         input_dict[key] = np.random.rand(*keras_4d_to_pt_shape(input_keras_layer)).astype(np.float32)
         onnx_tensor = input_dict[key]
@@ -130,10 +217,10 @@ def _test_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inpu
 
     # # Create the graph (GraphProto)
     graph_def = helper.make_graph(
-        [node_def],                                 # nodes
-        'test-model',                               # name
-        input_nodes,                                # inputs
-        output_nodes,                               # outputs
+        [node_def],  # nodes
+        'test-model',  # name
+        input_nodes,  # inputs
+        output_nodes,  # outputs
     )
 
     # Create Model
@@ -148,9 +235,11 @@ def _test_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inpu
     onnx_output = onnx_session.run(None, input_dict)
     onnx_runtime_ms = (time.monotonic() - onnx_start_time) * 1000
 
-    _LOGGER.debug(f'Node: {node.name}, op: {node.op_type}. \n'
-                  f'onnxruntime speed: {onnx_runtime_ms} ms\n'
-                  f'keras speed: {keras_runtime_ms} ms')
+    _LOGGER.debug(
+        f'Node: {node.name}, op: {node.op_type}. \n'
+        f'onnxruntime speed: {onnx_runtime_ms} ms\n'
+        f'keras speed: {keras_runtime_ms} ms'
+    )
 
     if len(onnx_output) == 1:
         onnx_output = onnx_output[0]
@@ -159,9 +248,7 @@ def _test_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inpu
     return True
 
 
-def converter(onnx_op: str,
-              override: bool = False,
-              op_testing_fn: t.Callable = None):
+def converter(onnx_op: str, override: bool = False, op_testing_fn: t.Callable = None):
     """
     Args:
         onnx_op: An onnx operation that we wish to add a converter for
@@ -176,11 +263,12 @@ def converter(onnx_op: str,
     # TODO add check to see whether operator is valid
 
     if override:
-        _LOGGER.warning(f'WARNING:: Overriding existing onnx node converter: {onnx_op}. '
-                        f'Please double check to ensure that this is the desired behavior.')
-
+        _LOGGER.warning(
+            f'WARNING:: Overriding existing onnx node converter: {onnx_op}. '
+            f'Please double check to ensure that this is the desired behavior.'
+        )
     if not override and onnx_op in Graph._SUPPORTED_OPERATIONS:
-        raise DuplicateOperatorConverterError(f'{onnx_op} converter already exists ...')
+        raise DuplicateOperatorConverterError(f'Converter for "{onnx_op}" already exists ...')
 
     def inner(wrapped_fn: t.Callable) -> t.Callable:
         """
@@ -191,9 +279,17 @@ def converter(onnx_op: str,
         Returns:
 
         """
+
         @wraps(wrapped_fn)
-        def created_converter(onnx_node: OnnxNode, input_layer, computational_graph, node_dict: t.Dict,
-                              test_results: TestResults, *args, **kwargs) -> t.Any:
+        def created_converter(
+            onnx_node: OnnxNode,
+            input_layer,
+            computational_graph,
+            node_dict: t.Dict,
+            test_results: TestResults,
+            *args,
+            **kwargs,
+        ) -> t.Any:
             """
             Given a pytorch operation or layer, directly port it to keras
             Returns:
@@ -226,7 +322,11 @@ def converter(onnx_op: str,
 
             # 1. Perform tests to see whether the two layers (pytorch and keras)
             # are outputting the same value and shape
-            test_layer: t.Callable = _test_operation if op_testing_fn is None else op_testing_fn
+            if onnx_node.op_type in ['Mul', 'Add', 'Sub', 'Div']:
+                test_layer: t.Callable = _test_double_input_operation if op_testing_fn is None else op_testing_fn
+            else:
+                test_layer: t.Callable = _test_operation if op_testing_fn is None else op_testing_fn
+
             is_tested = test_layer(onnx_node, input_layer, keras_layer, *args, **kwargs)
 
             # Add test data

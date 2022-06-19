@@ -32,7 +32,8 @@ repos:
             "--count",
             "--show-source",
             "--statistics",
-            "--max-line-length=120"
+            "--max-line-length=120",
+            "--ignore=E402,F401"
           ]
 
   - repo: https://github.com/asottile/pyupgrade

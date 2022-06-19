@@ -1,19 +1,17 @@
 import logging
 import os.path
 import typing as t
+from collections import OrderedDict
+
 import onnx
 import onnxruntime as ort
 import torch.nn as nn
-
-from collections import OrderedDict
-
 import torch.onnx
-from onnx.helper import printable_node
-
 from onnx import numpy_helper
+from onnx.helper import printable_node
 from tensorflow import keras
 
-from .util import get_graph_shape_info, get_graph_output_shape, test_model_output
+from .util import get_graph_output_shape, get_graph_shape_info, test_model_output
 
 
 class Graph:
@@ -25,10 +23,7 @@ class Graph:
     Keras format
     """
 
-    def __init__(self,
-                 model: t.Union[nn.Module, str, onnx.ModelProto],
-                 input_shape: t.Tuple,
-                 opset_version: int = 12):
+    def __init__(self, model: t.Union[nn.Module, str, onnx.ModelProto], input_shape: t.Tuple, opset_version: int = 12):
         """
         By default the onnx graph is designed to convert PyTorch onnx
         models to Keras. By making small modifications and writing converters,
@@ -58,15 +53,17 @@ class Graph:
                 self.output_names.append('output_0')
 
             hash_str = f'__{hash(model)}__.onnx'
-            torch.onnx.export(self.model,
-                              dummy_input,
-                              hash_str,
-                              do_constant_folding=True,  # whether to execute constant folding for optimization
-                              verbose=False,
-                              opset_version=self.opset_version,
-                              export_params=True,
-                              input_names=['input_0'],
-                              output_names=self.output_names)
+            torch.onnx.export(
+                self.model,
+                dummy_input,
+                hash_str,
+                do_constant_folding=True,  # whether to execute constant folding for optimization
+                verbose=False,
+                opset_version=self.opset_version,
+                export_params=True,
+                input_names=['input_0'],
+                output_names=self.output_names,
+            )
 
             # Check model and create onnx runtime session
             self.onnx_model = onnx.load(hash_str)
@@ -84,8 +81,9 @@ class Graph:
             onnx.checker.check_model(self.onnx_model)
             self.model = ort.InferenceSession(self.onnx_model.SerializeToString())
         else:
-            raise ValueError(f'Invalid model type: {self.model}. Please pass in '
-                             f'PyTorch model or onnx model string path.')
+            raise ValueError(
+                f'Invalid model type: {self.model}. Please pass in ' f'PyTorch model or onnx model string path.'
+            )
 
         # For now, assume we are working with models that have a single input.
         # we will later need to test this with models that have multiple inputs
@@ -217,8 +215,9 @@ class Graph:
                 input_keras_layer = self.computational_graph[input_node_name]
 
             # Convert to keras
-            outputs = conversion_func(node, input_keras_layer, self.computational_graph,
-                                      self.node_dict, self.test_stats, *node_inputs)
+            outputs = conversion_func(
+                node, input_keras_layer, self.computational_graph, self.node_dict, self.test_stats, *node_inputs
+            )
 
             self.forward_input_cache[node.name] = outputs
 
@@ -229,13 +228,14 @@ class Graph:
             Graph._LOGGER.info(f'Successfully converted: {node}')
 
         # Print model conversion result if needed
-        self._LOGGER.info('Model conversion report: ###################### \n'
-                          f'{self.test_stats.get_test_results()}')
+        self._LOGGER.info('Model conversion report: ###################### \n' f'{self.test_stats.get_test_results()}')
 
         if has_unsupported_ops:
-            unsupported_operations = "\n- ".join(unsupported_ops)
-            raise ValueError('Failed to convert model. The following operations are currently unsupported: '
-                             f'{unsupported_operations}')
+            unsupported_operations = '\n- '.join(unsupported_ops)
+            raise ValueError(
+                'Failed to convert model. The following operations are currently unsupported: '
+                f'{unsupported_operations}'
+            )
 
         # In case there are multiple outputs
         if len(output_list) > 1:
@@ -307,11 +307,13 @@ class TestResults:
         tested_operations = stat_delimiter + stat_delimiter.join(self.tested_operations)
         untested_operations = stat_delimiter + stat_delimiter.join(self.untested_operations)
 
-        return f'Total node count: {node_count}. \n' \
-               f'Test nodes: {tested_nodes} \n' \
-               f'Untested nodes: {untested_nodes}. \n' \
-               f'Tested operations: {tested_operations} \n' \
-               f'Untested operations: {untested_operations} \n'
+        return (
+            f'Total node count: {node_count}. \n'
+            f'Test nodes: {tested_nodes} \n'
+            f'Untested nodes: {untested_nodes}. \n'
+            f'Tested operations: {tested_operations} \n'
+            f'Untested operations: {untested_operations} \n'
+        )
 
 
 def onnx_node_attributes_to_dict(attributes):
@@ -321,6 +323,7 @@ def onnx_node_attributes_to_dict(attributes):
     Args:
         attributes: The attributes from OnnxNode
     """
+
     def onnx_attribute_to_dict(onnx_attr):
         """
         Parse ONNX attribute
@@ -339,6 +342,7 @@ def onnx_node_attributes_to_dict(attributes):
         for attr_type in ['floats', 'ints', 'strings']:
             if getattr(onnx_attr, attr_type):
                 return list(getattr(onnx_attr, attr_type))
+
     return {arg.name: onnx_attribute_to_dict(arg) for arg in attributes}
 
 
@@ -356,8 +360,10 @@ class OnnxNode:
         self.attributes = onnx_node_attributes_to_dict(node.attribute)
 
     def __repr__(self):
-        return f'name: {self.name}: ' \
-               f'\n\t op type: {self.op_type}' \
-               f'\n\t input_nodes: {self.input_nodes}' \
-               f'\n\t output_nodes: {self.output_nodes}' \
-               f'\n\t attributes: {self.attributes}'
+        return (
+            f'name: {self.name}: '
+            f'\n\t op type: {self.op_type}'
+            f'\n\t input_nodes: {self.input_nodes}'
+            f'\n\t output_nodes: {self.output_nodes}'
+            f'\n\t attributes: {self.attributes}'
+        )

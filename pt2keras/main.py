@@ -4,14 +4,15 @@ import typing as t
 
 import torch.nn as nn
 
+from pt2keras.core.onnx.graph import Graph
 from pt2keras.core.util import get_project_root
 
 
 class Pt2Keras:
-
     _AVAILABLE_IR = ('onnx', 'pytorch')
     _SUPPORTED_LAYERS = {key: {} for key in _AVAILABLE_IR}
     _LOGGER = logging.getLogger()
+    _CONVERTERS_IMPORTED = False
 
     def __init__(self, model, input_shape: t.Tuple):
         self.graph = None
@@ -48,16 +49,8 @@ class Pt2Keras:
     @intermediate_rep.setter
     def intermediate_rep(self, value):
         # Import all converters
-        converter_directory_path = f'{get_project_root()}/pt2keras/core/onnx/convert'
-        if value in ['onnx', 'pytorch']:
-            for entry in os.scandir(converter_directory_path):
-                if entry.is_file():
-                    # remove '.py' from import statement
-                    string = f'from pt2keras.core.onnx.convert import {entry.name}'[:-3]
-                    exec(string)
-            from pt2keras.core.onnx.graph import Graph
-        else:
-            raise ValueError('Invalid property')
+        if value not in ['onnx', 'pytorch']:
+            raise ValueError(f'Invalid intermediate rep: {value}')
         self.graph = Graph(self.model, self.input_shape)
         self._intermediate_rep = value
 
@@ -87,3 +80,18 @@ class Pt2Keras:
 
     def convert_layer(self, layer: nn.Module):
         return self.graph.convert_layeR(layer)
+
+
+# Import converters during import
+def import_converters():
+    if not Pt2Keras._CONVERTERS_IMPORTED:
+        converter_directory_path = f'{get_project_root()}/pt2keras/core/onnx/convert'
+        for entry in os.scandir(converter_directory_path):
+            if entry.is_file():
+                # remove '.py' from import statement
+                string = f'from pt2keras.core.onnx.convert import {entry.name}'[:-3]
+                exec(string)
+        Pt2Keras._CONVERTERS_IMPORTED = True
+
+
+import_converters()

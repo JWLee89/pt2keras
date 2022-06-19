@@ -1,14 +1,13 @@
 import logging
 
 import numpy as np
-
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import backend as K
 
-from .common import converter
 from ..graph import OnnxNode
 from ..util import tensor_proto_to_tf_dtype, to_tf
+from .common import converter
 
 
 @converter('Constant')
@@ -50,16 +49,14 @@ def add(node: OnnxNode, input_layer, lhs, rhs):
             # Import statement needs to be included when exporting models
             # to another format such as EdgeTPU
             import tensorflow as tf
-            layer = tf.add(
-                x[0],
-                x[1]
-            )
+
+            layer = tf.add(x[0], x[1])
             return layer
 
         output_layer = keras.layers.Lambda(target_layer)
         output = output_layer([lhs, rhs])
 
-    return output, None
+    return output, output_layer
 
 
 @converter('Mul')
@@ -76,7 +73,6 @@ def multiply(node: OnnxNode, input_layer, lhs, rhs):
 
     """
     logger = logging.getLogger('ops::Mul')
-    output_layer = None
     try:
         output_layer = keras.layers.Multiply()
         output = output_layer(lhs, rhs)
@@ -87,15 +83,12 @@ def multiply(node: OnnxNode, input_layer, lhs, rhs):
         # IndexError: tuple index out of range
         def target_layer(x):
             import tensorflow as tf
-            layer = tf.multiply(
-                x[0],
-                x[1]
-            )
+
+            layer = tf.multiply(x[0], x[1])
             return layer
 
-        output_layer = keras.layers.Lambda(target_layer)
+        output_layer = keras.layers.Lambda(target_layer, name=f'mul_{node.name}')
         output = output_layer([lhs, rhs])
-        output_layer = None
     return output, output_layer
 
 
@@ -112,10 +105,8 @@ def divide(node: OnnxNode, input_layer, lhs, rhs):
         # IndexError: tuple index out of range
         def target_layer(x):
             import tensorflow as tf
-            layer = tf.divide(
-                x[0],
-                x[1]
-            )
+
+            layer = tf.divide(x[0], x[1])
             return layer
 
         output_layer = keras.layers.Lambda(target_layer)
@@ -186,8 +177,9 @@ def gemm(node: OnnxNode, input_layer, *input_tensor):
         dense_layer = keras.layers.Dense(
             output_channels,
             weights=keras_weights,
-            bias_initializer='zeros', kernel_initializer='zeros',
-            use_bias=has_bias
+            bias_initializer='zeros',
+            kernel_initializer='zeros',
+            use_bias=has_bias,
         )
 
         # The first input - always X
@@ -211,6 +203,7 @@ def mat_mul(node: OnnxNode, input_layer, *inputs):
 
     def mat_mul_lambda(a, b):
         import tensorflow.keras.backend as K
+
         if not isinstance(a, np.ndarray):
             a = a.numpy()
         if not isinstance(b, np.ndarray):
@@ -219,7 +212,6 @@ def mat_mul(node: OnnxNode, input_layer, *inputs):
 
         print(f'Numpy: {output.shape}, {output}')
         return output
-
 
     # output_layer = keras.layers.Dense(inputs[1].shape[-1], use_bias=False)
     output_layer = keras.layers.Lambda(lambda t: mat_mul_lambda(t[0], t[1]))

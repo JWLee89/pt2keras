@@ -64,13 +64,13 @@ if __name__ == '__main__':
     from copy import deepcopy
 
     import numpy as np
-    from torchvision.models.vgg import vgg16
+    from torchvision.models.efficientnet import efficientnet_b0
 
     from pt2keras import Pt2Keras
 
     # Test pt2keras on EfficientNet_b0
     # model = DummyModel()
-    model = vgg16().eval()
+    model = efficientnet_b0().eval()
     height_width = 224
 
     # Generate dummy inputs
