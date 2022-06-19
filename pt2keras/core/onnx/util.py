@@ -10,7 +10,6 @@ from tensorflow import keras
 import torch
 import torch.nn as nn
 
-
 _LOGGER = logging.getLogger('util::Test')
 
 
@@ -93,7 +92,7 @@ def test_model_output(source_model: t.Union[nn.Module, onnxruntime.InferenceSess
         test_equality(output_source, output_keras, atol)
 
 
-def test_equality(output_source: np.ndarray, output_keras: np.ndarray, atol: float = 1e-4):
+def test_equality(output_source: np.ndarray, output_keras: np.ndarray, atol: float = 1e-4, node = None):
     """
     Test the outputs of the two models for equality.
     Args:
@@ -122,8 +121,12 @@ def test_equality(output_source: np.ndarray, output_keras: np.ndarray, atol: flo
     average_diff = np.mean(output_source - output_keras)
 
     output_is_approximately_equal = np.allclose(output_source, output_keras, atol=atol)
-    assert output_is_approximately_equal, f'PyTorch output and Keras output is different. ' \
-                                          f'Mean difference: {average_diff}'
+    assertion_error_msg = f'PyTorch output and Keras output is different. Mean difference: {average_diff}.'
+    # Append useful node metadata for debugging onnx conversion operation
+    if node:
+        assertion_error_msg += f'\n. Node: {node}'
+
+    assert output_is_approximately_equal, assertion_error_msg
 
 
 def get_tensor_data(initializer: onnx.TensorProto) -> None:

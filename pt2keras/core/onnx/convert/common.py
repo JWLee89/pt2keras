@@ -155,7 +155,7 @@ def _test_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inpu
     if len(onnx_output) == 1:
         onnx_output = onnx_output[0]
 
-    test_equality(onnx_output, keras_output)
+    test_equality(onnx_output, keras_output, node=node)
     return True
 
 
