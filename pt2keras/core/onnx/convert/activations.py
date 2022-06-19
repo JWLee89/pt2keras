@@ -13,7 +13,8 @@ def sigmoid(node: onnx.NodeProto, input_layer, *args):
         node: The node that we wish to convert
     Returns:
     """
-    return keras.layers.Activation(activations.sigmoid)(input_layer)
+    activation_layer = keras.layers.Activation(activations.sigmoid)
+    return activation_layer(input_layer), activation_layer
 
 
 @converter('Relu')
@@ -24,4 +25,5 @@ def relu(node: onnx.NodeProto, input_layer, *args):
         node: The node that we wish to convert
     Returns:
     """
-    return keras.layers.Activation(activations.relu)(input_layer)
+    activation_layer = keras.layers.Activation(activations.relu)
+    return activation_layer(input_layer), activation_layer

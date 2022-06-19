@@ -8,7 +8,7 @@ from tensorflow.keras import backend as K
 
 from .common import converter
 from ..graph import OnnxNode
-from ..util import tensor_proto_to_tf_dtype
+from ..util import tensor_proto_to_tf_dtype, to_tf
 
 
 @converter('Constant')
@@ -19,46 +19,70 @@ def constant(node: OnnxNode, input_layer, *inputs):
         node: The node that we wish to convert
     Returns:
     """
-    return input_layer
+    return input_layer, None
 
 
 @converter('Add')
 def add(node: OnnxNode, input_layer, lhs, rhs):
+    """
+    TODO: Add unit test
+    Args:
+        node:
+        input_layer:
+        lhs:
+        rhs:
+
+    Returns:
+
+    """
     logger = logging.getLogger('ops::Add')
     try:
-        if not isinstance(lhs, np.ndarray) and not isinstance(rhs, np.ndarray) :
-            add = keras.layers.Add()
-            output = add([lhs, rhs])
+        if not isinstance(lhs, np.ndarray) and not isinstance(rhs, np.ndarray):
+            output_layer = keras.layers.Add()
+            output = output_layer([lhs, rhs])
         else:
             raise ValueError('Operands are different.')
 
     except (IndexError, ValueError):
         logger.debug('Failed to use keras.layers.Add. Fallback to TF lambda.')
+
         def target_layer(x):
             # Import statement needs to be included when exporting models
             # to another format such as EdgeTPU
             import tensorflow as tf
-            print(x[0], x[1])
             layer = tf.add(
                 x[0],
                 x[1]
             )
             return layer
 
-        lambda_layer = keras.layers.Lambda(target_layer)
-        output = lambda_layer([lhs, rhs])
+        output_layer = keras.layers.Lambda(target_layer)
+        output = output_layer([lhs, rhs])
 
-    return output
+    return output, None
 
 
 @converter('Mul')
 def multiply(node: OnnxNode, input_layer, lhs, rhs):
+    """
+    TODO: add unit test
+    Args:
+        node:
+        input_layer:
+        lhs:
+        rhs:
+
+    Returns:
+
+    """
     logger = logging.getLogger('ops::Mul')
+    output_layer = None
     try:
-        mul = keras.layers.Multiply()
-        output = mul([lhs, rhs])
+        output_layer = keras.layers.Multiply()
+        output = output_layer(lhs, rhs)
     except (IndexError, ValueError):
         logger.debug('Failed to use keras.layers.Multiply. Fallback to TF lambda.')
+
         # Doesn't work with constants
         # IndexError: tuple index out of range
         def target_layer(x):
@@ -69,15 +93,17 @@ def multiply(node: OnnxNode, input_layer, lhs, rhs):
             )
             return layer
 
-        lambda_layer = keras.layers.Lambda(target_layer)
-        output = lambda_layer([lhs, rhs])
-    return output
+        output_layer = keras.layers.Lambda(target_layer)
+        output = output_layer([lhs, rhs])
+        output_layer = None
+    return output, output_layer
 
 
 @converter('Div')
 def divide(node: OnnxNode, input_layer, lhs, rhs):
     logger = logging.getLogger('ops::Div')
     try:
+        output_layer = None
         output = lhs / rhs
     except (IndexError, ValueError):
         logger.debug('Failed to use divide. Fallback to TF Lmbda')
@@ -91,9 +117,10 @@ def divide(node: OnnxNode, input_layer, lhs, rhs):
                 x[1]
             )
             return layer
-        lambda_layer = keras.layers.Lambda(target_layer)
-        output = lambda_layer([lhs, rhs])
-    return output
+
+        output_layer = keras.layers.Lambda(target_layer)
+        output = output_layer([lhs, rhs])
+    return output, output_layer
 
 
 @converter('Cast')
@@ -104,7 +131,7 @@ def cast(node: OnnxNode, input_layer, *args):
     """
     tf_dtype = tensor_proto_to_tf_dtype(node.attributes['to'])
     outputs = K.cast(input_layer, dtype=tf_dtype)
-    return outputs
+    return outputs, None
 
 
 @converter('Gather')
@@ -122,18 +149,13 @@ def gather(node: OnnxNode, input_layer, input_tensor, indices):
         mapped_axis = axis_mapper[axis]
     else:
         mapped_axis = axis
-    return tf.gather(input_tensor, indices=indices, axis=mapped_axis)
+    return tf.gather(input_tensor, indices=indices, axis=mapped_axis), None
 
 
 @converter('Dropout')
 def dropout(node: OnnxNode, input_layer, input_tensor):
     # TODO: Dropout removed during evaluation phase
-    return keras.layers.Dropout()(input_layer)
-
-
-@converter('Flatten')
-def flatten(node: OnnxNode, input_layer, input_tensor):
-    return keras.layers.Flatten()(input_layer)
+    return keras.layers.Dropout()(input_layer), keras.layers.Dropout()
 
 
 @converter('Gemm')
@@ -142,6 +164,7 @@ def gemm(node: OnnxNode, input_layer, *input_tensor):
     Implementation for General Matrix Multiplication
     """
     attributes = node.attributes
+    dense_layer = None
     # Check if Bias available
     if len(input_tensor) == 3:
         has_bias = True
@@ -160,7 +183,7 @@ def gemm(node: OnnxNode, input_layer, *input_tensor):
     input_channels, output_channels = keras_weights[0].shape
 
     if isinstance(keras_weights[0], np.ndarray):
-        dense = keras.layers.Dense(
+        dense_layer = keras.layers.Dense(
             output_channels,
             weights=keras_weights,
             bias_initializer='zeros', kernel_initializer='zeros',
@@ -169,13 +192,39 @@ def gemm(node: OnnxNode, input_layer, *input_tensor):
 
         # The first input - always X
         try:
-            output = dense(input_layer)
+            output = dense_layer(input_layer)
         except ValueError:
             reshape = keras.layers.Reshape([input_channels])
             reshaped_x = reshape(input_layer)
-            output = dense(reshaped_x)
+            output = dense_layer(reshaped_x)
 
     else:
+        dense_layer = keras.layers.Multiply()
         output = keras.layers.Multiply()(input_layer, keras_weights[0])
 
-    return output
+    return output, dense_layer
+
+
+@converter('MatMul')
+def mat_mul(node: OnnxNode, input_layer, *inputs):
+    print(f'Input length: {len(inputs)}. First input: {inputs[0].shape} second input: {inputs[1].shape}')
+
+    def mat_mul_lambda(a, b):
+        import tensorflow.keras.backend as K
+        if not isinstance(a, np.ndarray):
+            a = a.numpy()
+        if not isinstance(b, np.ndarray):
+            b = b.numpy()
+        output = np.matmul(a, b)
+
+        print(f'Numpy: {output.shape}, {output}')
+        return output
+
+
+    # output_layer = keras.layers.Dense(inputs[1].shape[-1], use_bias=False)
+    output_layer = keras.layers.Lambda(lambda t: mat_mul_lambda(t[0], t[1]))
+    output = output_layer(input_layer)
+
+    print(f'MatMul output layer: {output}, layer: {output_layer}')
+
+    return output, output_layer

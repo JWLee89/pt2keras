@@ -10,6 +10,14 @@ in TensorFlow were easy to export, I was having difficulty exporting models deve
 
 If you want to know the root cause, I can add the documentation that I created to the README.md
 
+## Supported Networks
+
+The following networks have been tested and are supported
+
+- EfficientNet
+- MobileNetV2
+- ResNet
+
 ## Installation 
 
 Coming soon ...
@@ -73,3 +81,45 @@ if __name__ == '__main__':
     assert output_is_approximately_equal, f'PyTorch output and Keras output is different. ' \
                                           f'Mean difference: {average_diff}'
 ```
+
+## FAQ
+
+Question: What should I do if I get the following error?
+
+```shell
+
+Traceback (most recent call last):
+  File "---", line 90, in <module>
+    keras_model = converter.convert()
+  File "---", line 78, in convert
+    return self.graph._convert()
+  File "---", line 233, in _convert
+    raise ValueError('Failed to convert model. The following operations are currently unsupported: '
+ValueError: Failed to convert model. The following operations are currently unsupported: AveragePool
+```
+
+Answer: This means that the `AveragePool` operator is currently not supported.
+The framework can be extended without modifying the source code by adding the converter using the following decorator.
+
+```python
+from pt2keras.core.onnx.convert.common import converter
+
+@converter('AveragePool')
+def average_pool_implementation(node, keras_input_layers, *inputs):
+    # Write your implementation here
+    pass
+
+
+```
+
+## Updates
+
+The model now supports onnx inputs. 
+However, the onnx model must perform operations PyTorch style.
+E.g. Model input must be in the form (Batch, Channel, Height, Width).
+
+In a later version, support for other forms will be added ... 
+
+## License
+
+This software is covered by the MIT license.

@@ -1,51 +1,47 @@
-import onnx
+import logging
+
 from tensorflow import keras
-from tensorflow.keras import backend as K
 
 from .common import converter
 from ..graph import OnnxNode
 
 
 @converter('GlobalAveragePool')
-def global_average_pool(node: OnnxNode, input_layer, input_tensor):
-    # axis = node.attributes['axis']
-    print(f'attributes global average pooling: {node.attributes}')
-    global_pool = keras.layers.GlobalAveragePooling2D(data_format='channels_last')
-    input_layer = global_pool(input_layer)
-
-    def target_layer(x):
-        # need to import inside lambda function to compile keras
-        from tensorflow import keras
-        return keras.backend.expand_dims(x)
-
-    lambda_layer1 = keras.layers.Lambda(target_layer)
-    lambda_layer2 = keras.layers.Lambda(target_layer)
-
-    input_layer = lambda_layer1(input_layer)  # double expand dims
-    output = lambda_layer2(input_layer)
-
-    # need to permute to convert fully to keras
-    output = K.permute_dimensions(output, (0, 2, 3, 1))
-    print(f'Output shape: {output.shape}')
-    return output
+def global_average_pool(node: OnnxNode, _, input_tensor):
+    try:
+        # keepdims available in TF > 2.6.0.
+        output_layer = keras.layers.GlobalAveragePooling2D(keepdims=True)
+        output = output_layer(input_tensor)
+    except TypeError as ex:
+        # Fallback. TF version < 2.6.0
+        output_layer = keras.Sequential([
+            keras.layers.GlobalAveragePooling2D(),
+            keras.layers.Reshape((1, 1, input_tensor.shape[-1]))
+        ])
+        # Here, an error is thrown
+        output = output_layer(input_tensor)
+    return output, output_layer
 
 
 @converter('MaxPool')
-def max_pool(node: OnnxNode, input_layer, input_tensor):
+def max_pool(node: OnnxNode, input_layer, _):
 
     attributes = node.attributes
+    logger = logging.getLogger('onnx:max_pool')
     kernel_shape = attributes['kernel_shape']
     stride_shape = attributes['strides']
     pads = attributes['pads'] if 'pads' in attributes else [0, 0, 0, 0, 0, 0]
     pad = 'valid'
 
+    logger.debug(f'MaxPool input layer: {input_layer}\n\n. Input tensor: {input_layer}')
+
     if all([shape % 2 == 1 for shape in kernel_shape]) and \
             all([kernel_shape[i] // 2 == pads[i] for i in range(len(kernel_shape))]) and \
             all([shape == 1 for shape in stride_shape]):
         pad = 'same'
-        print('Use `same` padding parameters.')
+        logger.debug('Use `same` padding parameters.')
     else:
-        print('Unable to use `same` padding. Add ZeroPadding2D layer to fix shapes.')
+        logger.debug('Unable to use `same` padding. Add ZeroPadding2D layer to fix shapes.')
         padding_name = node.name + '_pad'
         if len(kernel_shape) == 2:
             padding = None
@@ -84,4 +80,3 @@ def max_pool(node: OnnxNode, input_layer, input_tensor):
         raise ValueError('Pooling operation must be performed on 2D or 3D objects')
 
     return pooling(input_layer)
-
