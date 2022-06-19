@@ -42,7 +42,6 @@ def keras_4d_to_pt_shape(input_data: np.ndarray) -> t.Tuple:
 def test_model_output(source_model: t.Union[nn.Module, onnxruntime.InferenceSession],
                       keras_model: tf.keras.Model,
                       pt_input_shape: t.Tuple,
-                      keras_input_shape: t.Tuple,
                       atol=1e-4) -> None:
     """
     Compare and test the PyTorch and Keras model for output equality.
@@ -52,7 +51,6 @@ def test_model_output(source_model: t.Union[nn.Module, onnxruntime.InferenceSess
         source_model: The source PyTorch / Onnx model
         keras_model: The target / generated Keras model
         pt_input_shape: The dimension of the PyTorch input data
-        keras_input_shape: The dimension of the Keras input data
         atol: The absolute tolerance parameter specified in numpy.
         See numpy documentation for more information
     """
@@ -171,19 +169,19 @@ class NodeProperties:
     shape = 'shape'
 
 
-def get_graph_input_shape(graph: onnx.GraphProto,
-                          transpose_matrix: t.Union[t.List, t.Tuple]) -> t.List[t.Dict]:
+def get_graph_shape_info(graph: onnx.GraphProto,
+                         transpose_list: t.Union[t.List, t.Tuple]) -> t.List[t.Dict]:
     """
     Args:
-        graph: The graph we want t
-        transpose_matrix:
+        graph: The graph we want to evaluate
+        transpose_list: The transpose mapping list (see np.transpose for more information)
 
     Returns:
         A list containing information on the graph input node
     """
     shape_info = []
     for node in graph.input:
-        data = _add_node_property(node, transpose_matrix)
+        data = _add_node_property(node, transpose_list)
         shape_info.append(data)
     return shape_info
 
@@ -250,28 +248,3 @@ def _add_node_property(node, transpose_matrix: t.Union[t.List, t.Tuple] = None) 
     # Convert to appropriate format
     data[NodeProperties.shape] = input_shape
     return data
-
-
-def generate_node_key(node: onnx.NodeProto):
-    final_key = ''
-    input_str = ''
-    for input_name in node.input:
-        input_str += f'{input_name}_'
-
-    if input_str:
-        final_key += 'INPUTINFO-'
-        final_key += input_str
-
-    output_str = ''
-    for output_name in node.output:
-        output_str += f'{output_name}_'
-
-    # remove trailing '_'
-    if output_str:
-        final_key += 'OUTPUTINFO-'
-        final_key += output_str
-
-    if final_key.endswith('_'):
-        final_key = final_key[:-1]
-
-    return final_key
