@@ -1,15 +1,15 @@
 import logging
 
+import tensorflow as tf
 import torch
 import torch.nn as nn
-import tensorflow as tf
-from torchvision.models.efficientnet import efficientnet_b0
 
 
 class DummyModel(nn.Module):
     """
     Model will be converted to EdgeTPU.
     """
+
     def __init__(self):
         super().__init__()
         # These can all be found using named_modules() or children()
@@ -61,10 +61,13 @@ class DummyModel(nn.Module):
 
 
 if __name__ == '__main__':
-    from pt2keras import Pt2Keras
     from copy import deepcopy
+
     import numpy as np
     from torchvision.models.vgg import vgg16
+
+    from pt2keras import Pt2Keras
+
     # Test pt2keras on EfficientNet_b0
     # model = DummyModel()
     model = vgg16().eval()
