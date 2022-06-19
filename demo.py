@@ -65,15 +65,15 @@ if __name__ == '__main__':
     from copy import deepcopy
     import numpy as np
     from torchvision.models.resnet import resnet18
-    from torchvision.models.mobilenetv2 import mobilenet_v2
+    from torchvision.models.vgg import vgg19
     # Test pt2keras on EfficientNet_b0
     # model = DummyModel()
     # model = efficientnet_b0().eval()
-    model = mobilenet_v2().eval()
+    model = vgg19().eval()
     height_width = 224
 
     # Generate dummy inputs
-    x_keras = tf.random.normal((1, 224, 112, 3))
+    x_keras = tf.random.normal((1, 224, 224, 3))
     # input dimensions for PyTorch are BCHW, whereas TF / Keras default is BHWC
     x_pt = torch.from_numpy(deepcopy(x_keras.numpy())).permute(0, 3, 1, 2)
 
