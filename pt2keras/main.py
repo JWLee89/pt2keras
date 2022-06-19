@@ -2,16 +2,15 @@ import logging
 import os
 import typing as t
 
-import onnx
 import torch.nn as nn
+
+from pt2keras.core.util import get_project_root
 
 
 class Pt2Keras:
 
     _AVAILABLE_IR = ('onnx', 'pytorch')
-    _SUPPORTED_LAYERS = {
-        key: {} for key in _AVAILABLE_IR
-    }
+    _SUPPORTED_LAYERS = {key: {} for key in _AVAILABLE_IR}
     _LOGGER = logging.getLogger()
 
     def __init__(self, model, input_shape: t.Tuple):
@@ -25,20 +24,22 @@ class Pt2Keras:
         # onnx file path
         elif isinstance(self.model, str) and self.model.endswith('.onnx'):
             if not os.path.exists(self.model):
-                raise IOError(f'Cannot find onnx model at specified path: {self.model}')
+                raise OSError(f'Cannot find onnx model at specified path: {self.model}')
 
             self.intermediate_rep = Pt2Keras._AVAILABLE_IR[0]
         else:
-            raise ValueError(f'Invalid model type. '
-                             f'Please pass in one of the following values: {Pt2Keras._AVAILABLE_IR}')
+            raise ValueError(
+                f'Invalid model type. ' f'Please pass in one of the following values: {Pt2Keras._AVAILABLE_IR}'
+            )
         logging.basicConfig()
         self._validate()
 
     def _validate(self):
         if self.intermediate_rep not in Pt2Keras._AVAILABLE_IR:
-            raise ValueError(f'Intermediate representation value - {self.intermediate_rep} '
-                             f'is not available. Choices: {Pt2Keras._AVAILABLE_IR}')
-
+            raise ValueError(
+                f'Intermediate representation value - {self.intermediate_rep} '
+                f'is not available. Choices: {Pt2Keras._AVAILABLE_IR}'
+            )
 
     @property
     def intermediate_rep(self):
@@ -47,18 +48,14 @@ class Pt2Keras:
     @intermediate_rep.setter
     def intermediate_rep(self, value):
         # Import all converters
-        if value == 'onnx':
-            for entry in os.scandir('pt2keras/core/onnx/convert'):
+        converter_directory_path = f'{get_project_root()}/pt2keras/core/onnx/convert'
+        if value in ['onnx', 'pytorch']:
+            for entry in os.scandir(converter_directory_path):
                 if entry.is_file():
+                    # remove '.py' from import statement
                     string = f'from pt2keras.core.onnx.convert import {entry.name}'[:-3]
                     exec(string)
             from pt2keras.core.onnx.graph import Graph
-        elif value == 'pytorch':
-            for entry in os.scandir('pt2keras/core/pytorch/convert'):
-                if entry.is_file():
-                    string = f'from pt2keras.core.pytorch.convert import {entry.name}'[:-3]
-                    exec(string)
-            from pt2keras.core.pytorch.graph import Graph
         else:
             raise ValueError('Invalid property')
         self.graph = Graph(self.model, self.input_shape)
@@ -68,7 +65,7 @@ class Pt2Keras:
     def _get_key(layer: t.ClassVar):
         try:
             return layer.__name__
-        except:
+        except Exception:
             return layer.__class__.__name__
 
     def set_logging_level(self, logging_level):

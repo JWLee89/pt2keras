@@ -13,7 +13,7 @@ from onnx.helper import printable_node
 from onnx import numpy_helper
 from tensorflow import keras
 
-from .util import get_graph_input_shape, get_graph_output_shape, test_model_output
+from .util import get_graph_shape_info, get_graph_output_shape, test_model_output
 
 
 class Graph:
@@ -125,7 +125,8 @@ class Graph:
 
     def _init_graph(self):
         """
-        Forward pass over graph
+        Forward pass over graph to
+        generate metadata
         """
         for node in self.onnx_model.graph.node:
             key = node.name
@@ -147,6 +148,9 @@ class Graph:
                         self.computational_graph[constant_node_output] = onnx_node_obj.attributes['value']
 
     def _convert(self):
+        """
+        Convert the PyTorch model into Keras
+        """
         input_shape = self.pytorch_input_shape
 
         # Change image shape from BCHW to BHWC (TensorFlow / Keras default shape)
@@ -154,7 +158,7 @@ class Graph:
 
         # For now, assume we are working with models that have a single input.
         # we will later need to test this with models that have multiple inputs
-        input_data = get_graph_input_shape(self.onnx_model.graph, dims)[0]
+        input_data = get_graph_shape_info(self.onnx_model.graph, dims)[0]
         input_shape = input_data['shape']
         input_name = input_data['name']
 
@@ -233,13 +237,14 @@ class Graph:
             raise ValueError('Failed to convert model. The following operations are currently unsupported: '
                              f'{unsupported_operations}')
 
+        # In case there are multiple outputs
         if len(output_list) > 1:
             outputs = output_list
 
         model = keras.Model(inputs, outputs)
         # Test the Keras model output.
         # Error will be asserted if the output dimensions or values are very different.
-        test_model_output(self.model, model, self.pytorch_input_shape, input_shape)
+        test_model_output(self.model, model, self.pytorch_input_shape)
         return model
 
     def _initialize_weights(self):

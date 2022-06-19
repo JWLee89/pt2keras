@@ -115,11 +115,6 @@ def _test_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inpu
         keras_input_data = onnx_tensor.transpose((0, 2, 3, 1))
     else:
         keras_input_data = onnx_tensor
-    # print(f'Keras input data: {keras_input_data.shape}, onnx input data: {onnx_tensor.shape}')
-    # print(f'Node name: {node_def.name}, input layer: {input_keras_layer}')
-    # print(f'Inputs for {node.name}: ')
-    for d in inputs:
-        print(f'Input: {d.shape}')
 
     keras_start_time = time.monotonic()
     keras_output = output_keras_layer(keras_input_data)
@@ -160,10 +155,7 @@ def _test_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inpu
     if len(onnx_output) == 1:
         onnx_output = onnx_output[0]
 
-    # print(f'Onnx output: {onnx_output.shape}, keras output: {keras_output.shape}')
-
-    test_equality(onnx_output, keras_output)
-
+    test_equality(onnx_output, keras_output, node=node)
     return True
 
 
