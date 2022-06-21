@@ -65,17 +65,13 @@ class Graph:
                 output_names=self.output_names,
             )
 
-            # Check model and create onnx runtime session
+            # Check model and create onnx runtime session for inference
             self.onnx_model = onnx.load(hash_str)
             self.ort_session = ort.InferenceSession(hash_str)
             onnx.checker.check_model(self.onnx_model)
             if os.path.exists(hash_str):
                 os.remove(hash_str)
 
-            # Test model for equality
-            self._LOGGER.debug('Testing for equality --- PyTorch vs Onnx')
-            # output_ort = self.ort_session.run(None, {"input_0": dummy_input})
-            # output_pt = output.detach().cpu().numpy()
         elif isinstance(self.model, str):
             self.onnx_model = onnx.load(model)
             onnx.checker.check_model(self.onnx_model)
@@ -216,7 +212,7 @@ class Graph:
 
             # Convert to keras
             outputs = conversion_func(
-                node, input_keras_layer, self.computational_graph, self.node_dict, self.test_stats, *node_inputs
+                node, input_keras_layer, self.computational_graph, self.opset_version, self.test_stats, *node_inputs
             )
 
             self.forward_input_cache[node.name] = outputs

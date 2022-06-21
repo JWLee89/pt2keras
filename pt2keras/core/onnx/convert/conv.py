@@ -21,6 +21,9 @@ def conv(node: OnnxNode, input_layer, *inputs):
     weights, bias = None, None
     weights = node.weights[0]
     bias = None if len(node.weights) != 2 else node.weights[1]
+
+    # print(f'Conv input: {__.shape}, input shape: {input_layer.shape}, node name: {node.name}')
+
     attributes: t.Dict = node.attributes
     has_bias = bias is not None
     n_groups = attributes['group'] if 'group' in attributes else 1
@@ -68,6 +71,8 @@ def conv(node: OnnxNode, input_layer, *inputs):
             kernel_initializer='zeros',
         )
         outputs = output_layer(input_layer)
+        # # skip test
+        output_layer = None
 
     elif n_groups != 1:
         logger.debug('Number of groups more than 1, but less than number of in_channel, use group convolution')
@@ -120,6 +125,13 @@ def conv(node: OnnxNode, input_layer, *inputs):
         outputs = output_layer(input_layer)
 
     else:
+        # logger.debug(f'normal conv~~~~~~~~~~~~~~~~~~~~, weight shape: {node.weights[0].shape}, out channels: '
+        #              f'{out_channels}, in_channels: {in_channels}, '
+        #              f'Kernel_size: ({height}, {width}). '
+        #              f'Groups: {n_groups}'
+        #              f'Dilation rate: {dilation}')
+        # logger.debug(f'Node: {node}')
+        # logger.debug(f'Input shape: {input_layer.shape}, weight shape: {weights.shape}')
         output_layer = keras.layers.Conv2D(
             filters=out_channels,
             kernel_size=(height, width),  # filters
@@ -130,6 +142,11 @@ def conv(node: OnnxNode, input_layer, *inputs):
             weights=[weights, bias] if has_bias else [weights],
             activation=None,
         )
+        # print(f'Weights ------ {node.name}: input layer: {input_layer}, '
+        #       f'layer: {output_layer},')
+        # print(f'Inputs:')
+        # for d in inputs:
+        #     print(f'SHAPE: {d.shape}, stride: {strides[0], strides[1]}')
         outputs = output_layer(input_layer)
 
     return outputs, output_layer

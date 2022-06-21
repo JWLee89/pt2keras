@@ -27,7 +27,7 @@ class DuplicateOperatorConverterError(Exception):
     pass
 
 
-def _test_double_input_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inputs) -> bool:
+def _test_double_input_operation(node: OnnxNode, opset_version, input_keras_layer, output_keras_layer, *inputs) -> bool:
 
     if len(inputs) != 2:
         raise ValueError(f'Expected two inputs, received: {len(inputs)} inputs')
@@ -41,10 +41,9 @@ def _test_double_input_operation(node: OnnxNode, input_keras_layer, output_keras
     input_nodes = []
     # For storing input dict for onnx runtime inference
     input_dict = {}
-    start_index = 0
-    for i in range(start_index, len(node.input_nodes)):
+    for i in range(len(node.input_nodes)):
         input_node_name = node.input_nodes[i]
-        onnx_input_data = inputs[i - start_index]
+        onnx_input_data = inputs[i]
         input_shape = onnx_input_data.shape
         if not isinstance(onnx_input_data, np.ndarray):
             if len(input_shape) == 4:
@@ -94,7 +93,7 @@ def _test_double_input_operation(node: OnnxNode, input_keras_layer, output_keras
     # Create Model
     model_def = helper.make_model(graph_def, producer_name='test_layer')
     # Set opset version. Hardcode this Jawn for now
-    model_def.opset_import[0].version = 13
+    model_def.opset_import[0].version = opset_version
     onnx.checker.check_model(model_def)
 
     # Prepare session for inference
@@ -116,7 +115,7 @@ def _test_double_input_operation(node: OnnxNode, input_keras_layer, output_keras
     return True
 
 
-def _test_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inputs) -> bool:
+def _test_operation(node: OnnxNode, opset_version, input_keras_layer, output_keras_layer, *inputs) -> bool:
     """
     The default testing function. After each layer / operation is made,
     the test will be run to ensure that the output from the onnx model
@@ -225,8 +224,7 @@ def _test_operation(node: OnnxNode, input_keras_layer, output_keras_layer, *inpu
 
     # Create Model
     model_def = helper.make_model(graph_def, producer_name='test_layer')
-    # Set opset version. Hardcode this Jawn for now
-    model_def.opset_import[0].version = 13
+    model_def.opset_import[0].version = opset_version
     onnx.checker.check_model(model_def)
 
     # Prepare session for inference
@@ -275,17 +273,14 @@ def converter(onnx_op: str, override: bool = False, op_testing_fn: t.Callable = 
         The inner workings on the decorator
         Args:
             wrapped_fn: The converter function we are wrapping
-
-        Returns:
-
         """
 
         @wraps(wrapped_fn)
         def created_converter(
             onnx_node: OnnxNode,
             input_layer,
-            computational_graph,
-            node_dict: t.Dict,
+            computational_graph: t.Dict,
+            opset_version: int,
             test_results: TestResults,
             *args,
             **kwargs,
@@ -327,7 +322,7 @@ def converter(onnx_op: str, override: bool = False, op_testing_fn: t.Callable = 
             else:
                 test_layer: t.Callable = _test_operation if op_testing_fn is None else op_testing_fn
 
-            is_tested = test_layer(onnx_node, input_layer, keras_layer, *args, **kwargs)
+            is_tested = test_layer(onnx_node, opset_version, input_layer, keras_layer, *args, **kwargs)
 
             # Add test data
             if is_tested:

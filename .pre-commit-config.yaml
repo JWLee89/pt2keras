@@ -33,7 +33,7 @@ repos:
             "--show-source",
             "--statistics",
             "--max-line-length=120",
-            "--ignore=E402,F401"
+            "--ignore=E402,F401,W503"
           ]
 
   - repo: https://github.com/asottile/pyupgrade
