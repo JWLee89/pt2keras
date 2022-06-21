@@ -10,7 +10,7 @@ def input_sizes_to_test():
     also provide rectangular input as well.
     """
     return [
-        (1, 3, 224, 224),
+        (1, 3, 64, 64),
         (1, 3, 32, 32),
     ]
 

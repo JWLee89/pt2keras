@@ -1,7 +1,7 @@
 import pytest
 import torchvision.models.efficientnet as efficientnet
 
-from .common import get_converter, input_sizes_to_test
+from tests.common import get_converter
 
 
 @pytest.mark.parametrize(

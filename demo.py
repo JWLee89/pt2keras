@@ -66,14 +66,15 @@ if __name__ == '__main__':
 
     import numpy as np
     from torchvision.models.alexnet import alexnet
-    from torchvision.models.efficientnet import efficientnet_b0
-    from torchvision.models.resnet import resnet50
+
+    # from torchvision.models.efficientnet import efficientnet_b0
+    from torchvision.models.resnet import wide_resnet50_2
 
     from pt2keras import Pt2Keras
 
     # Test pt2keras on EfficientNet_b0
     # model = DummyModel()
-    model = efficientnet_b0().eval()
+    model = wide_resnet50_2().eval()
     height_width = 224
 
     # Generate dummy inputs

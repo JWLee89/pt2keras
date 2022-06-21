@@ -1,15 +1,18 @@
 import pytest
 import torchvision.models.mobilenet as mobilenet
 
-from .common import get_converter, input_sizes_to_test
+from tests.common import get_converter, input_sizes_to_test
 
 
-@pytest.mark.skip('HardSigmoid currently not supported.')
-@pytest.mark.parametrize('model_class', [
-    mobilenet.mobilenet_v2,
-    mobilenet.mobilenet_v3_small,
-    mobilenet.mobilenet_v3_large,
-])
+@pytest.mark.skip('Currently, lot of difference between outputs in mobilenet_v3_large and small')
+@pytest.mark.parametrize(
+    'model_class',
+    [
+        mobilenet.mobilenet_v2,
+        mobilenet.mobilenet_v3_small,
+        mobilenet.mobilenet_v3_large,
+    ],
+)
 @pytest.mark.parametrize('input_sizes', input_sizes_to_test())
 def test_mobilenet(model_class, input_sizes):
     """

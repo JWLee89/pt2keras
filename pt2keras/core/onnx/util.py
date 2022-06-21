@@ -13,7 +13,33 @@ from tensorflow import keras
 _LOGGER = logging.getLogger('util::Test')
 
 
-def keras_4d_to_pt_shape(input_data: np.ndarray) -> t.Tuple:
+def pt_input_to_keras_shape(pt_shaped_input_data) -> t.Tuple:
+    """
+    Given an np.ndarray or keras tensor, convert the PyTorch input shape to Keras input shape
+    Args:
+        pt_shaped_input_data: An input tensor or np array shaped in the form of a PyTorch input
+
+    Returns:
+        A tuple representing the output dimensions in Keras format
+    """
+    if not isinstance(pt_shaped_input_data, np.ndarray) and not keras.backend.is_keras_tensor(pt_shaped_input_data):
+        raise ValueError('Not a np.ndarray or KerasTensor')
+
+    # Transpose function varies based on data type. can
+    transpose_function = np.transpose if isinstance(pt_shaped_input_data, np.ndarray) else tf.transpose
+    input_dims = len(pt_shaped_input_data.shape)
+    if input_dims >= 4:
+        # (B, C, H, W) -> (B, H, W, C)
+        # (B, C, X, Y, Z) -> (B, X, Y, Z, C)
+        # and so on
+        transpose_vector = (0,) + tuple(i for i in range(2, input_dims)) + (1,)
+        output_data = transpose_function(pt_shaped_input_data, transpose_vector)
+    else:
+        output_data = pt_shaped_input_data
+    return output_data.shape
+
+
+def keras_input_to_pt_shape(input_data: np.ndarray) -> t.Tuple:
     """
     Given an input data, if it is a 4d input,
     such as an image or conv intermediate feature,
@@ -25,17 +51,18 @@ def keras_4d_to_pt_shape(input_data: np.ndarray) -> t.Tuple:
     Returns:
         The converted data
     """
-    if len(input_data.shape) != 4:
-        return input_data.shape
+    if not isinstance(input_data, np.ndarray) and not keras.backend.is_keras_tensor(input_data):
+        raise ValueError('Not an np.ndarray or KerasTensor')
 
-    if isinstance(input_data, np.ndarray):
-        #  (B, H, W, C) ->  (B, C, H, W)
-        output_data = input_data.transpose((0, 3, 1, 2))
-    elif keras.backend.is_keras_tensor(input_data):
-        output_data = tf.transpose(input_data, (0, 3, 1, 2))
+    # Transpose function varies based on data type. can
+    transpose_function = np.transpose if isinstance(input_data, np.ndarray) else tf.transpose
+    input_dims = len(input_data.shape)
+    if input_dims >= 4:
+        # (B, C, H, W) -> (B, H, W, C)
+        transpose_vector = (0, input_dims - 1) + tuple(i for i in range(1, input_dims - 1))
+        output_data = transpose_function(input_data, transpose_vector)
     else:
-        raise ValueError('keras_4d_to_pt only accepts Numpy ndarray or KerasTensor')
-
+        output_data = input_data
     return output_data.shape
 
 
@@ -84,22 +111,24 @@ def test_model_output(
         for source_tensor, keras_tensor in zip(output_source, output_keras):
             if isinstance(source_tensor, torch.Tensor):
                 source_tensor = source_tensor.detach().cpu().numpy()
-            test_equality(source_tensor, keras_tensor.numpy(), atol)
+            is_approximately_equal(source_tensor, keras_tensor.numpy(), atol)
     # Single outputs
     else:
         if isinstance(output_source, torch.Tensor):
             output_source = output_source.detach().cpu().numpy()
-        test_equality(output_source, output_keras, atol)
+        is_approximately_equal(output_source, output_keras, atol)
 
 
-def test_equality(output_source: np.ndarray, output_keras: np.ndarray, atol: float = 1e-4, node=None):
+def is_approximately_equal(output_source: np.ndarray, output_keras: np.ndarray, atol: float = 1e-4, node=None):
     """
     Test the outputs of the two models for equality.
     Args:
-        output_source: The output of a PyTorch model
+        output_source: The output of a PyTorch model.
         output_keras: The output of the converted Keras model
         atol: The absolute tolerance parameter specified in numpy.
     """
+    # Convert the PyTorch / onnx model into keras output format
+    # E.g. (B, C, H, W) -> (B, H, W, C)
     if len(output_source.shape) == 4:
         output_source = output_source.transpose((0, 2, 3, 1))
 

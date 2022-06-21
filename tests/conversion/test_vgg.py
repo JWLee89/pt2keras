@@ -1,10 +1,10 @@
 import pytest
-from torchvision.models.alexnet import alexnet
+import torchvision.models.vgg as vgg
 
-from .common import get_converter
+from tests.common import get_converter
 
 
-@pytest.mark.parametrize('model_class', [alexnet])
+@pytest.mark.parametrize('model_class', [vgg.vgg11, vgg.vgg13, vgg.vgg16, vgg.vgg19, vgg.vgg11_bn])
 @pytest.mark.parametrize('input_sizes', [(1, 3, 224, 224)])
 def test_vgg(model_class, input_sizes):
     """

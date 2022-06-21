@@ -14,10 +14,11 @@ class Pt2Keras:
     _LOGGER = logging.getLogger()
     _CONVERTERS_IMPORTED = False
 
-    def __init__(self, model, input_shape: t.Tuple):
+    def __init__(self, model, input_shape: t.Tuple, opset_version: int = 13):
         self.graph = None
         self.input_shape = input_shape
         self.model = model
+        self.opset_version = opset_version
         # check model type
         if isinstance(self.model, nn.Module):
             self.intermediate_rep = Pt2Keras._AVAILABLE_IR[0]
@@ -51,7 +52,7 @@ class Pt2Keras:
         # Import all converters
         if value not in ['onnx', 'pytorch']:
             raise ValueError(f'Invalid intermediate rep: {value}')
-        self.graph = Graph(self.model, self.input_shape)
+        self.graph = Graph(self.model, self.input_shape, opset_version=self.opset_version)
         self._intermediate_rep = value
 
     @staticmethod

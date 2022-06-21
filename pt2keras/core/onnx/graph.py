@@ -23,7 +23,7 @@ class Graph:
     Keras format
     """
 
-    def __init__(self, model: t.Union[nn.Module, str, onnx.ModelProto], input_shape: t.Tuple, opset_version: int = 12):
+    def __init__(self, model: t.Union[nn.Module, str, onnx.ModelProto], input_shape: t.Tuple, opset_version: int = 13):
         """
         By default the onnx graph is designed to convert PyTorch onnx
         models to Keras. By making small modifications and writing converters,
