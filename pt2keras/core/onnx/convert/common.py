@@ -194,7 +194,7 @@ def _test_operation(node: OnnxNode, opset_version, input_keras_layer, output_ker
 
     # TODO: Make sure that we can receive multiple inputs
     if node_to_update:
-        input_dict[key] = np.random.rand(*keras_input_to_pt_shape(input_keras_layer)).astype(np.float32)
+        input_dict[key] = np.random.randn(*keras_input_to_pt_shape(input_keras_layer)).astype(np.float32)
         onnx_tensor = input_dict[key]
 
     if len(input_keras_layer.shape) == 4:

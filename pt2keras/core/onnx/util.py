@@ -13,7 +13,7 @@ from tensorflow import keras
 _LOGGER = logging.getLogger('util::Test')
 
 
-def pt_input_to_keras_shape(pt_shaped_input_data) -> t.Tuple:
+def pt_input_to_keras(pt_shaped_input_data) -> t.Tuple:
     """
     Given an np.ndarray or keras tensor, convert the PyTorch input shape to Keras input shape
     Args:
@@ -36,7 +36,7 @@ def pt_input_to_keras_shape(pt_shaped_input_data) -> t.Tuple:
         output_data = transpose_function(pt_shaped_input_data, transpose_vector)
     else:
         output_data = pt_shaped_input_data
-    return output_data.shape
+    return output_data
 
 
 def keras_input_to_pt_shape(input_data: np.ndarray) -> t.Tuple:
@@ -60,10 +60,8 @@ def keras_input_to_pt_shape(input_data: np.ndarray) -> t.Tuple:
     if input_dims >= 4:
         # (B, C, H, W) -> (B, H, W, C)
         transpose_vector = (0, input_dims - 1) + tuple(i for i in range(1, input_dims - 1))
-        output_data = transpose_function(input_data, transpose_vector)
-    else:
-        output_data = input_data
-    return output_data.shape
+        return transpose_function(input_data, transpose_vector).shape
+    return input_data.shape
 
 
 def test_model_output(
@@ -85,9 +83,8 @@ def test_model_output(
     """
     # Create TensorFlow input
     random_tensor_source = np.random.randn(*pt_input_shape).astype(np.float32)
-    random_tensor_keras = random_tensor_source
-    if len(random_tensor_source.shape) == 4:
-        random_tensor_keras = random_tensor_keras.transpose((0, 2, 3, 1))
+
+    random_tensor_keras = random_tensor_source.transpose((0, 2, 3, 1))
 
     x_keras = tf.convert_to_tensor(random_tensor_keras)
     output_keras = keras_model(x_keras)

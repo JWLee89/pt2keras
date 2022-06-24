@@ -37,49 +37,20 @@ Afterwards, we proceed with the following steps:
 3. Perform inference
 4. Have a coffee and compare raw outputs. Yee!
 
-The steps above are detailed in `demo.py` and the code snippet below
+For more information, check out the examples inside `demo`. To run the demo, type in the following: 
 
-```python
+1. Resnet18 demo
 
-if __name__ == '__main__':
-    from copy import deepcopy
-    import numpy as np
-    import tensorflow as tf
-    import torch
-    from torchvision.models.efficientnet import efficientnet_b0
+```shell
+cd demo 
+python demo.py
+```
 
-    from pt2keras import Pt2Keras
+2. Custom PyTorch model demo
 
-    # Test pt2keras on EfficientNet_b0
-    model = efficientnet_b0(pretrained=True).eval()
-    height_width = 32
-
-    # Generate dummy inputs
-    x_keras = tf.random.normal((1, height_width, height_width, 3))
-    # input dimensions for PyTorch are BCHW, whereas TF / Keras default is BHWC
-    x_pt = torch.from_numpy(deepcopy(x_keras.numpy())).permute(0, 3, 1, 2)
-
-    print(f'pt shape: {x_pt.shape}, x_keras.shape: {x_keras.shape}')
-
-    # Convert the model
-    converter = Pt2Keras(model, x_pt.shape)
-    keras_model = converter.convert()
-
-    # Make PT model the same input dimension as Keras
-    # If the output is >= 4 dimensional
-    pt_output = model(x_pt).cpu().detach().numpy()
-    keras_output = keras_model(x_keras).numpy()
-    # Mean average diff over all axis
-
-    average_diff = np.mean(np.mean([pt_output, keras_output]))
-    print(f'pytorch: {pt_output.shape}')
-    print(f'keras: {keras_output.shape}')
-    # The differences will be precision errors from multiplication / division
-    print(f'Mean average diff: {average_diff}')
-
-    output_is_approximately_equal = np.allclose(pt_output, keras_output, atol=1e-4)
-    assert output_is_approximately_equal, f'PyTorch output and Keras output is different. ' \
-                                          f'Mean difference: {average_diff}'
+```shell
+cd demo 
+python custom_pytorch_demo.py
 ```
 
 ## FAQ
