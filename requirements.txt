@@ -1,14 +1,16 @@
 # Dependencies: Don't need GPU
 # -------------------
+numpy
 torch
 torchvision
 onnx
-# For running tests to see whether outputs are identical from onnx model
 onnxruntime
+# For running tests to see whether outputs are identical from onnx model
 
 # Tensorflow
-tensorflow; sys_platform != 'darwin' or platform_machine != 'arm64'
-tensorflow-macos; sys_platform == 'darwin' and platform_machine == 'arm64'
+tensorflow
+# tensorflow; sys_platform != 'darwin' or platform_machine != 'arm64'
+# tensorflow-macos; sys_platform == 'darwin' and platform_machine == 'arm64'
 
 # If you get the following error:
 # If this call came from a _pb2.py file,

@@ -1,12 +1,11 @@
 import logging
 
 import numpy as np
-
 from tensorflow import keras
 
-from .common import converter
 from ..graph import OnnxNode
 from ..util import to_tf
+from .common import converter
 
 
 @converter('Reshape')
@@ -42,6 +41,7 @@ def reshape(node: OnnxNode, _, *inputs):
 
                 def target_layer(x):
                     import tensorflow as tf
+
                     # input dimensions for PyTorch are BCHW, whereas TF / Keras default is BHWC
                     # Change from TF / Keras Shape (BHWC) -> PyTorch (BCHW)
                     x = tf.transpose(x, [0, 3, 1, 2])
@@ -78,16 +78,25 @@ def reshape(node: OnnxNode, _, *inputs):
 
 @converter('Flatten')
 def flatten(node: OnnxNode, input_layer, *input_tensor):
-    logger = logging.getLogger('onnx::Flatten')
     if len(input_tensor) != 1:
         raise AttributeError('Number of inputs is not equal to 1 for Flatten()')
-    logger.debug(f'Convert Flatten ... {node}')
+
     input_tensor = input_tensor[0]
-    # Note: We are converting a PyTorch model into keras, so we need to flatten
-    # with channels first in mind ...
-    output_layer = keras.layers.Flatten(data_format='channels_first')
-    output = output_layer(input_tensor)
-    return output, output_layer
+
+    def target(x):
+        import tensorflow as tf
+
+        # Need to reshape, otherwise, we won't get the same output as PyTorch
+        if len(x.shape) == 4:
+            x = tf.transpose(x, [0, 3, 1, 2])
+        t = tf.reshape(x, (1, -1))
+        return t
+
+    custom = keras.layers.Lambda(target)
+    # For some reason, this is not working. We have to transpose data ... sadface T_T
+    # output_layer = keras.layers.Flatten(data_format='channels_first')
+    output = custom(input_tensor)
+    return output, custom
 
 
 @converter('Shape')
@@ -119,7 +128,7 @@ def concat(node: OnnxNode, _, *inputs):
     layer_input = inputs
     output_layer = None
     if all([isinstance(layer, np.ndarray) for layer in inputs]):
-        logger.debug(f'Concat numpy arrays.')
+        logger.debug('Concat numpy arrays.')
         output = np.concatenate(layer_input, axis=axis)
     else:
         logger.debug('Concat Keras layers.')
@@ -127,17 +136,18 @@ def concat(node: OnnxNode, _, *inputs):
             try:
                 output_layer = keras.layers.concatenate(inputs=layer_input, axis=axis)
                 output = output_layer(layer_input)
-            except:
+            except Exception:
                 logger.warning('!!! IMPORTANT INFORMATION !!!')
                 logger.warning('Something goes wrong with concat layers. Will use TF fallback.')
                 logger.warning('---')
 
                 def target_layer(x, axis=axis):
                     import tensorflow as tf
+
                     x = tf.concat(x, axis=axis)
                     return x
 
-                output_layer = keras.layers.Lambda(target_layer, name="%s_CHW" % node.name)
+                output_layer = keras.layers.Lambda(target_layer, name='%s_CHW' % node.name)
                 output = output_layer(layer_input)
         else:
             output = layer_input[0]
@@ -188,10 +198,11 @@ def slice_inputs(node: OnnxNode, _, *inputs):
 
             def target_layer(x, axes=np.array(axes), starts=starts, ends=ends):
                 import tensorflow as tf
+
                 rank = max(axes)
                 s = [0 for _ in range(rank + 1)]
                 e = [0 for _ in range(rank + 1)]
-                mask = 0xff
+                mask = 0xFF
                 for _s, _e, axis in zip(starts, ends, axes):
                     s[axis] = _s
                     e[axis] = _e
@@ -205,10 +216,11 @@ def slice_inputs(node: OnnxNode, _, *inputs):
 
             def target_layer(x, axis=axes[0], starts=starts[0], ends=ends[0]):
                 import tensorflow as tf
+
                 rank = axis
                 s = [0 for _ in range(rank + 1)]
                 e = [0 for _ in range(rank + 1)]
-                mask = 0xff
+                mask = 0xFF
                 s[axis] = starts
                 e[axis] = ends
                 mask = mask ^ (0x1 << axis)
@@ -228,6 +240,7 @@ def unsqueeze(node: OnnxNode, _, *inputs):
 
     def target_layer(x):
         from tensorflow import keras
+
         return keras.backend.expand_dims(x, 0)
 
     output_layer = keras.layers.Lambda(target_layer)
@@ -243,6 +256,7 @@ def squeeze(node: OnnxNode, _, *inputs):
 
     def target_layer(x, axis=attributes['axes'][0]):
         from tensorflow import keras
+
         return keras.backend.squeeze(x, axis)
 
     output_layer = keras.layers.Lambda(target_layer)
@@ -255,12 +269,12 @@ def transpose(node: OnnxNode, input_layer, *inputs):
     attributes = node.attributes
     output_layer = None
     if attributes['perm'][0] != 0:
-        print('Can\'t permute batch dimension. Result may be wrong.')
+        print('Cannot permute batch dimension. Result may be wrong.')
         if isinstance(input_layer, np.ndarray):
             print('Transposing numpy array.')
             output = np.transpose(input_layer, axes=attributes['perm'])
         else:
-            raise NotImplementedError('Can\'t modify this type of data')
+            raise NotImplementedError('Cannot modify this type of data')
     else:
         output_layer = keras.layers.Permute(attributes['perm'][1:])
         output = output_layer(input_layer)
@@ -276,6 +290,7 @@ def clip(node: OnnxNode, input_layer, *inputs):
 
     def clip_layer(x):
         from tensorflow import keras
+
         return keras.backend.clip(x, min_val, max_val)
 
     output_layer = keras.layers.Lambda(clip_layer)

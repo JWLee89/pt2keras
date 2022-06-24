@@ -27,3 +27,9 @@ def relu(node: onnx.NodeProto, input_layer, *args):
     """
     activation_layer = keras.layers.Activation(activations.relu)
     return activation_layer(input_layer), activation_layer
+
+
+@converter('HardSigmoid')
+def hard_sigmoid(node: onnx.NodeProto, input_layer, *args):
+    activation_layer = keras.layers.Activation(activations.hard_sigmoid)
+    return activation_layer(input_layer), activation_layer

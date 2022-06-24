@@ -31,7 +31,8 @@ class DummyModel(nn.Module):
             nn.Conv2d(1024, 256, (2, 2), stride=(2, 2), padding=0, groups=1, bias=True),
             nn.Sigmoid(),
             nn.Conv2d(256, 128, (3, 3), stride=(2, 2), padding=0, groups=1, bias=True),
-            nn.Sigmoid(),
+            nn.Conv2d(128, 128, (2, 2), stride=(1, 1), padding=0, groups=1, bias=True),
+            # nn.Sigmoid(),
             # nn.Linear(384, 384),
             # nn.ReLU(),
             # nn.Linear(384, 10),
@@ -64,17 +65,20 @@ if __name__ == '__main__':
     from copy import deepcopy
 
     import numpy as np
-    from torchvision.models.vgg import vgg16
+    from torchvision.models.alexnet import alexnet
+
+    # from torchvision.models.efficientnet import efficientnet_b0
+    from torchvision.models.resnet import wide_resnet50_2
 
     from pt2keras import Pt2Keras
 
     # Test pt2keras on EfficientNet_b0
     # model = DummyModel()
-    model = vgg16().eval()
+    model = wide_resnet50_2().eval()
     height_width = 224
 
     # Generate dummy inputs
-    x_keras = tf.random.normal((1, 224, 224, 3))
+    x_keras = tf.random.normal((1, 224, 112, 3))
     # input dimensions for PyTorch are BCHW, whereas TF / Keras default is BHWC
     x_pt = torch.from_numpy(deepcopy(x_keras.numpy())).permute(0, 3, 1, 2)
 

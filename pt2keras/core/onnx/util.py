@@ -6,14 +6,40 @@ import onnx.checker
 import onnx.helper
 import onnxruntime
 import tensorflow as tf
-from tensorflow import keras
 import torch
 import torch.nn as nn
+from tensorflow import keras
 
 _LOGGER = logging.getLogger('util::Test')
 
 
-def keras_4d_to_pt_shape(input_data: np.ndarray) -> t.Tuple:
+def pt_input_to_keras_shape(pt_shaped_input_data) -> t.Tuple:
+    """
+    Given an np.ndarray or keras tensor, convert the PyTorch input shape to Keras input shape
+    Args:
+        pt_shaped_input_data: An input tensor or np array shaped in the form of a PyTorch input
+
+    Returns:
+        A tuple representing the output dimensions in Keras format
+    """
+    if not isinstance(pt_shaped_input_data, np.ndarray) and not keras.backend.is_keras_tensor(pt_shaped_input_data):
+        raise ValueError('Not a np.ndarray or KerasTensor')
+
+    # Transpose function varies based on data type. can
+    transpose_function = np.transpose if isinstance(pt_shaped_input_data, np.ndarray) else tf.transpose
+    input_dims = len(pt_shaped_input_data.shape)
+    if input_dims >= 4:
+        # (B, C, H, W) -> (B, H, W, C)
+        # (B, C, X, Y, Z) -> (B, X, Y, Z, C)
+        # and so on
+        transpose_vector = (0,) + tuple(i for i in range(2, input_dims)) + (1,)
+        output_data = transpose_function(pt_shaped_input_data, transpose_vector)
+    else:
+        output_data = pt_shaped_input_data
+    return output_data.shape
+
+
+def keras_input_to_pt_shape(input_data: np.ndarray) -> t.Tuple:
     """
     Given an input data, if it is a 4d input,
     such as an image or conv intermediate feature,
@@ -25,24 +51,27 @@ def keras_4d_to_pt_shape(input_data: np.ndarray) -> t.Tuple:
     Returns:
         The converted data
     """
-    if len(input_data.shape) != 4:
-        return input_data.shape
+    if not isinstance(input_data, np.ndarray) and not keras.backend.is_keras_tensor(input_data):
+        raise ValueError('Not an np.ndarray or KerasTensor')
 
-    if isinstance(input_data, np.ndarray):
-        #  (B, H, W, C) ->  (B, C, H, W)
-        output_data = input_data.transpose((0, 3, 1, 2))
-    elif keras.backend.is_keras_tensor(input_data):
-        output_data = tf.transpose(input_data, (0, 3, 1, 2))
+    # Transpose function varies based on data type. can
+    transpose_function = np.transpose if isinstance(input_data, np.ndarray) else tf.transpose
+    input_dims = len(input_data.shape)
+    if input_dims >= 4:
+        # (B, C, H, W) -> (B, H, W, C)
+        transpose_vector = (0, input_dims - 1) + tuple(i for i in range(1, input_dims - 1))
+        output_data = transpose_function(input_data, transpose_vector)
     else:
-        raise ValueError('keras_4d_to_pt only accepts Numpy ndarray or KerasTensor')
-
+        output_data = input_data
     return output_data.shape
 
 
-def test_model_output(source_model: t.Union[nn.Module, onnxruntime.InferenceSession],
-                      keras_model: tf.keras.Model,
-                      pt_input_shape: t.Tuple,
-                      atol=1e-4) -> None:
+def test_model_output(
+    source_model: t.Union[nn.Module, onnxruntime.InferenceSession],
+    keras_model: tf.keras.Model,
+    pt_input_shape: t.Tuple,
+    atol=1e-4,
+) -> None:
     """
     Compare and test the PyTorch and Keras model for output equality.
     An error will be asserted if the generated inputs are not close
@@ -82,38 +111,46 @@ def test_model_output(source_model: t.Union[nn.Module, onnxruntime.InferenceSess
         for source_tensor, keras_tensor in zip(output_source, output_keras):
             if isinstance(source_tensor, torch.Tensor):
                 source_tensor = source_tensor.detach().cpu().numpy()
-            test_equality(source_tensor, keras_tensor.numpy(), atol)
+            is_approximately_equal(source_tensor, keras_tensor.numpy(), atol)
     # Single outputs
     else:
         if isinstance(output_source, torch.Tensor):
             output_source = output_source.detach().cpu().numpy()
-        test_equality(output_source, output_keras, atol)
+        is_approximately_equal(output_source, output_keras, atol)
 
 
-def test_equality(output_source: np.ndarray, output_keras: np.ndarray, atol: float = 1e-4, node = None):
+def is_approximately_equal(output_source: np.ndarray, output_keras: np.ndarray, atol: float = 1e-4, node=None):
     """
     Test the outputs of the two models for equality.
     Args:
-        output_source: The output of a PyTorch model
+        output_source: The output of a PyTorch model.
         output_keras: The output of the converted Keras model
         atol: The absolute tolerance parameter specified in numpy.
     """
+    # Convert the PyTorch / onnx model into keras output format
+    # E.g. (B, C, H, W) -> (B, H, W, C)
     if len(output_source.shape) == 4:
         output_source = output_source.transpose((0, 2, 3, 1))
 
     # batch dimension may have been removed for PyTorch model using flatten
     if len(output_source.shape) == len(output_keras.shape) - 1:
         for pt_dim, keras_dim in zip(output_source.shape, output_keras.shape[1:]):
-            assert pt_dim == keras_dim, 'Batch dimension may have been removed from PyTorch model, but ' \
-                                        f'the input dimensions still dont match. ' \
-                                        f'PT shape: {output_source.shape}' \
-                                        f'Keras shape: {output_keras.shape}'
-        _LOGGER.warning('Batch dimension may have possibly been removed from PyTorch model. '
-                        'Does your model use nn.Flatten() or torch.flatten() with start_dim=1 ?')
+            assert pt_dim == keras_dim, (
+                'Batch dimension may have been removed from PyTorch model, but '
+                f'the input dimensions still dont match. '
+                f'PT shape: {output_source.shape}'
+                f'Keras shape: {output_keras.shape}'
+            )
+        _LOGGER.warning(
+            'Batch dimension may have possibly been removed from PyTorch model. '
+            'Does your model use nn.Flatten() or torch.flatten() with start_dim=1 ?'
+        )
     else:
-        assert output_source.shape == output_keras.shape, 'PyTorch and Keras model output shape should be equal. ' \
-                                                      f'PT shape: {output_source.shape}, ' \
-                                                      f'Keras shape: {output_keras.shape}'
+        assert output_source.shape == output_keras.shape, (
+            'PyTorch and Keras model output shape should be equal. '
+            f'PT shape: {output_source.shape}, '
+            f'Keras shape: {output_keras.shape}'
+        )
 
     # Average diff over all axis
     average_diff = np.mean(output_source - output_keras)
@@ -122,7 +159,9 @@ def test_equality(output_source: np.ndarray, output_keras: np.ndarray, atol: flo
     assertion_error_msg = f'PyTorch output and Keras output is different. Mean difference: {average_diff}.'
     # Append useful node metadata for debugging onnx conversion operation
     if node:
-        assertion_error_msg += f'\n. Node: {node}'
+        assertion_error_msg += f'\n. Node: {node}\n'
+        assertion_error_msg += f'onnxruntime: {output_source}\n'
+        assertion_error_msg += f'keras: {output_keras}\n'
 
     assert output_is_approximately_equal, assertion_error_msg
 
@@ -169,8 +208,7 @@ class NodeProperties:
     shape = 'shape'
 
 
-def get_graph_shape_info(graph: onnx.GraphProto,
-                         transpose_list: t.Union[t.List, t.Tuple]) -> t.List[t.Dict]:
+def get_graph_shape_info(graph: onnx.GraphProto, transpose_list: t.Union[t.List, t.Tuple]) -> t.List[t.Dict]:
     """
     Args:
         graph: The graph we want to evaluate
@@ -206,9 +244,11 @@ def to_tf(obj, fake_input_layer=None, name=None):
         def target_layer(_, inp=obj, dtype=obj.dtype.name):
             import numpy as np
             import tensorflow as tf
+
             if not isinstance(inp, (np.ndarray, np.generic)):
                 inp = np.array(inp, dtype=dtype)
             return tf.constant(inp, dtype=inp.dtype)
+
         lambda_layer = keras.layers.Lambda(target_layer, name=name)
         output = lambda_layer(fake_input_layer)
 
@@ -217,8 +257,7 @@ def to_tf(obj, fake_input_layer=None, name=None):
         return obj
 
 
-def get_graph_output_shape(graph: onnx.GraphProto,
-                           transpose_matrix: t.Union[t.List, t.Tuple] = None) -> t.List[t.Dict]:
+def get_graph_output_shape(graph: onnx.GraphProto, transpose_matrix: t.Union[t.List, t.Tuple] = None) -> t.List[t.Dict]:
     """
     Args:
         graph: The graph we want t
