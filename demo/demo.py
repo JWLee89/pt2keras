@@ -3,6 +3,9 @@
 
 A minimalistic demo on how to use Pt2Keras.
 This will convert a target torchvision model into keras.
+To run the script, type in the following:
+
+python demo.py --model resnet50 input_shape 1 3 224 224
 """
 import tensorflow as tf
 from common import default_args, get_torchvision_model
@@ -15,13 +18,13 @@ if __name__ == '__main__':
     input_shape = args.input_shape
 
     # Grab mode
-    model = get_torchvision_model(model_name).eval()
+    model = get_torchvision_model(model_name)(pretrained=False).eval()
 
     # Create pt2keras object
-    converter = Pt2Keras(model, input_shape)
+    converter = Pt2Keras()
 
     # convert model
-    keras_model: tf.keras.Model = converter.convert()
+    keras_model: tf.keras.Model = converter.convert(model, input_shape)
 
     # Save the model
     keras_model.save('output_model.h5')

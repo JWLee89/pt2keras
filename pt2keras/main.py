@@ -5,42 +5,42 @@ import typing as t
 import torch.nn as nn
 
 from pt2keras.core.onnx.graph import Graph
-from pt2keras.core.util import get_project_root
+from pt2keras.core.paths import get_converter_absolute_path
 
 
 class Pt2Keras:
-    _AVAILABLE_IR = ('onnx', 'pytorch')
+    _AVAILABLE_IR = ('onnx',)
     _SUPPORTED_LAYERS = {key: {} for key in _AVAILABLE_IR}
     _LOGGER = logging.getLogger()
     _CONVERTERS_IMPORTED = False
 
-    def __init__(self, model, input_shape: t.Tuple, opset_version: int = 13):
+    def __init__(self, opset_version: int = 13):
         self.graph = None
-        self.input_shape = input_shape
-        self.model = model
         self.opset_version = opset_version
-        # check model type
-        if isinstance(self.model, nn.Module):
-            self.intermediate_rep = Pt2Keras._AVAILABLE_IR[0]
-            self.model.eval()
-        # onnx file path
-        elif isinstance(self.model, str) and self.model.endswith('.onnx'):
-            if not os.path.exists(self.model):
-                raise OSError(f'Cannot find onnx model at specified path: {self.model}')
-
-            self.intermediate_rep = Pt2Keras._AVAILABLE_IR[0]
-        else:
-            raise ValueError(
-                f'Invalid model type. ' f'Please pass in one of the following values: {Pt2Keras._AVAILABLE_IR}'
-            )
         logging.basicConfig()
-        self._validate()
 
     def _validate(self):
         if self.intermediate_rep not in Pt2Keras._AVAILABLE_IR:
             raise ValueError(
                 f'Intermediate representation value - {self.intermediate_rep} '
                 f'is not available. Choices: {Pt2Keras._AVAILABLE_IR}'
+            )
+
+    def _init_converters(self, model: t.Union[nn.Module, str]):
+        """
+        Initialize converters when Pt2Keras is initialized.
+        Args:
+            model: The model that we are aiming to convert
+
+        Returns:
+
+        """
+        # check model type
+        if isinstance(model, nn.Module) or (isinstance(model, str) and model.endswith('.onnx')):
+            self.intermediate_rep = Pt2Keras._AVAILABLE_IR[0]
+        else:
+            raise ValueError(
+                f'Invalid model type. ' f'Please pass in one of the following values: {Pt2Keras._AVAILABLE_IR}'
             )
 
     @property
@@ -50,9 +50,9 @@ class Pt2Keras:
     @intermediate_rep.setter
     def intermediate_rep(self, value):
         # Import all converters
-        if value not in ['onnx', 'pytorch']:
+        if value not in Pt2Keras._AVAILABLE_IR:
             raise ValueError(f'Invalid intermediate rep: {value}')
-        self.graph = Graph(self.model, self.input_shape, opset_version=self.opset_version)
+        self.graph = Graph(opset_version=self.opset_version)
         self._intermediate_rep = value
 
     @staticmethod
@@ -65,8 +65,19 @@ class Pt2Keras:
     def set_logging_level(self, logging_level):
         Pt2Keras._LOGGER.setLevel(logging_level)
 
-    def convert(self):
-        return self.graph._convert()
+    def convert(self, model, input_shape):
+        """
+        Perform conversion
+        Args:
+            model:
+            input_shape:
+
+        Returns:
+
+        """
+        self._init_converters(model)
+        self._validate()
+        return self.graph.convert(model, input_shape)
 
     def inspect(self, model: nn.Module) -> t.Tuple[t.List, t.List]:
         """
@@ -86,7 +97,7 @@ class Pt2Keras:
 # Import converters during import
 def import_converters():
     if not Pt2Keras._CONVERTERS_IMPORTED:
-        converter_directory_path = f'{get_project_root()}/pt2keras/core/onnx/convert'
+        converter_directory_path = get_converter_absolute_path()
         for entry in os.scandir(converter_directory_path):
             if entry.is_file():
                 # remove '.py' from import statement

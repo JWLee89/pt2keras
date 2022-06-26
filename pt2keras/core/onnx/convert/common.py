@@ -9,12 +9,13 @@ import onnxruntime as ort
 from onnx import helper
 
 from pt2keras.core.onnx.graph import Graph, OnnxNode, TestResults
-from pt2keras.core.onnx.util import is_approximately_equal, keras_input_to_pt_shape
+from pt2keras.core.onnx.testing.utils import is_approximately_equal
+from pt2keras.core.onnx.util import keras_input_to_pt_shape
 
 _LOGGER = logging.getLogger('onnx:converter')
 
 
-class DuplicateOperatorConverterError(Exception):
+class DuplicateOperatorError(Exception):
     """
     Simple exception class that is raised when the same operator
     is registered twice.
@@ -266,7 +267,7 @@ def converter(onnx_op: str, override: bool = False, op_testing_fn: t.Callable = 
             f'Please double check to ensure that this is the desired behavior.'
         )
     if not override and onnx_op in Graph._SUPPORTED_OPERATIONS:
-        raise DuplicateOperatorConverterError(f'Converter for "{onnx_op}" already exists ...')
+        raise DuplicateOperatorError(f'Converter for "{onnx_op}" already exists ...')
 
     def inner(wrapped_fn: t.Callable) -> t.Callable:
         """

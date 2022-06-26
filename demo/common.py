@@ -8,6 +8,9 @@ _AVAILABLE_DEMO_MODELS = (
     'resnet50',
     'vgg16',
     'vgg19',
+    'alexnet',
+    'inception_v3',
+    # And the efficient_b{i} series
 ) + tuple(f'efficientnet_b{i}' for i in range(8))
 
 
@@ -48,5 +51,12 @@ def get_torchvision_model(model_name: str) -> torch.nn.Module:
         import torchvision.models.efficientnet as efficientnet
 
         model_fn = getattr(efficientnet, model_name)
+    elif model_name == 'alexnet':
+        import torchvision.models.alexnet as alexnet
 
-    return model_fn()
+        model_fn = getattr(alexnet, model_name)
+    elif model_name.startswith('inception'):
+        from torchvision.models.inception import inception_v3
+
+        model_fn = inception_v3
+    return model_fn

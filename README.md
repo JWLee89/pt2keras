@@ -8,7 +8,8 @@ I needed to export existing models that were developed in PyTorch to edgetpu so 
 we cn utilize the Google TensorBoard and Coral Edge TPUS. Although models already developed 
 in TensorFlow were easy to export, I was having difficulty exporting models developed in PyTorch.
 
-If you want to know the root cause, I can add the documentation that I created to the README.md
+This project was designed to export PyTorch models to TensorFlow while maintaining the ability to 
+upload the model to the EdgeTPU without running into errors.s
 
 ## Supported Networks
 
@@ -17,12 +18,19 @@ The following networks have been tested and are supported
 - EfficientNet
 - MobileNetV2
 - ResNet
+- AlexNet
+- 
 
 ## Installation 
 
-Coming soon ...
+To install `pt2keras`, type in the following:
 
-## How to use 
+```shell
+# -U for upgrading existing packages
+pip install -U pt2keras
+```
+
+## How to use
 
 First, import the module
 
@@ -51,6 +59,8 @@ python demo.py
 ```shell
 cd demo 
 python custom_pytorch_demo.py
+# For available arguments, type in the following
+# python custom_pytorch_demo.py -h
 ```
 
 ## FAQ
@@ -71,27 +81,35 @@ ValueError: Failed to convert model. The following operations are currently unsu
 
 Answer: This means that the `AveragePool` operator is currently not supported.
 The framework can be extended without modifying the source code by adding the converter using the following decorator.
-The example below is how to override the existing `ReLU` operation.
 
 ```python
 from pt2keras import converter
 
-
+# Update the Relu onnx operator converter
 @converter('Relu', override=True)
 def add(onnx_node, input_tensor, *inputs):
     print('overriding ReLU')
     from tensorflow import keras
     return keras.activations.relu(input_tensor)
+```
 
+The example below is how to override the existing `ReLU` operation.
+If the override flag is not provided and the `operator` is already implemented, we will get the following error: 
+
+```shell
+Traceback (most recent call last):
+  File "---", line 50, in <module>
+    @converter('Relu')
+  File "----", line 270, in converter
+    raise DuplicateOperatorConverterError(f'Converter for "{onnx_op}" already exists ...')
+pt2keras.core.onnx.convert.common.DuplicateOperatorError: Converter for "Relu" already exists ...
 ```
 
 ## Updates
 
-The model now supports onnx inputs. 
+`pt2keras` now supports onnx inputs. 
 However, the onnx model must perform operations PyTorch style.
 E.g. Model input must be in the form (Batch, Channel, Height, Width).
-
-In a later version, support for other forms will be added ... 
 
 ## License
 
