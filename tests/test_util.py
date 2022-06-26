@@ -8,7 +8,7 @@ import typing as t
 import numpy as np
 import pytest
 
-from pt2keras.core.onnx.util import keras_input_to_pt_shape, pt_input_to_keras_shape
+from pt2keras.core.onnx.util import keras_input_to_pt_shape, pt_input_to_keras
 
 
 @pytest.mark.parametrize(
@@ -40,5 +40,5 @@ def test_keras_input_to_pt_shape(test_input: np.ndarray, expected: t.Tuple):
     ],
 )
 def test_pt_input_to_keras_shape(test_input: np.ndarray, expected: t.Tuple):
-    actual: t.Tuple = pt_input_to_keras_shape(test_input)
+    actual = pt_input_to_keras(test_input).shape
     assert actual == expected, f'Expected: {expected}, actual: {actual}'
