@@ -1,11 +1,12 @@
 import logging
-import os
 import typing as t
 
 import torch.nn as nn
 
 from .onnx_backend.graph import Graph
-from .paths import get_converter_absolute_path
+
+# We need to grab all the converters
+exec('from .onnx_backend.convert import *')
 
 
 class Pt2Keras:
@@ -91,22 +92,3 @@ class Pt2Keras:
     def is_convertible(self, model):
         supported_layers, unsupported_layers = self.inspect(model)
         return len(unsupported_layers) == 0
-
-
-# Import converters during import
-def import_converters():
-    if not Pt2Keras._CONVERTERS_IMPORTED:
-        converter_directory_path = get_converter_absolute_path()
-        for entry in os.scandir(converter_directory_path):
-            if entry.is_file():
-                # remove '.py' from import statement
-                try:
-                    import_statement = f'from pt2keras.onnx_backend.convert import {entry.name[:-3]}'
-                    exec(import_statement)
-                except Exception:
-                    import_statement = f'from .onnx_backend.convert import {entry.name[:-3]}'
-                    exec(import_statement)
-        Pt2Keras._CONVERTERS_IMPORTED = True
-
-
-import_converters()

@@ -4,7 +4,7 @@ import numpy as np
 from tensorflow import keras
 
 from ..graph import OnnxNode
-from ..util import to_tf
+from ..util import keras_input_to_pt, to_tf
 from .common import converter
 
 
@@ -38,14 +38,13 @@ def reshape(node, input_tensor, *inputs):
                 reshape_target = np.int32(shape_arr)
                 logger.warning(f'Removing batch dimensions ... new shape: {reshape_target} ')
 
-            transform_layer = keras.layers.Permute((3, 1, 2))
-            tensor_chw = transform_layer(input_layer)
+
+            tensor_chw = keras_input_to_pt(input_layer)
 
             # Removing entire feature dimension. Output shape is : (feature_count,)
             if len(reshape_target) == 1 and reshape_target[0] == -1:
                 output_layer = keras.layers.Flatten(name=f'{node.name}_flatten')
                 output = output_layer(tensor_chw)
-                print(f'Final output: {output}')
                 return output, None
 
             else:

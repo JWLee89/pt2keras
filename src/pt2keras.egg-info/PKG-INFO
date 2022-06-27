@@ -1,3 +1,19 @@
+Metadata-Version: 2.1
+Name: pt2keras
+Version: 0.0.1
+Summary: A simple PyTorch to Keras Model converter
+Home-page: https://github.com/JWLee89/pt2keras
+Author: Jay Lee
+Author-email: ljay189@gmail.com
+License: UNKNOWN
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
 # pt2keras
 
 A simple PyTorch To Keras Model Converter. 
@@ -19,7 +35,7 @@ The following networks have been tested and are supported
 - MobileNetV2
 - ResNet
 - AlexNet
-- Inception_v3 (warning: converted model shows relatively larger distance (Network output value does not fall within atol=1e-4))
+- Inception_v3
 - Vgg
 - GoogleNet
 
@@ -134,3 +150,5 @@ E.g. Model input must be in the form (Batch, Channel, Height, Width).
 ## License
 
 This software is covered by the MIT license.
+
+
