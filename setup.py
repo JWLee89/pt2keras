@@ -3,7 +3,7 @@ import warnings
 
 import setuptools
 
-from pt2keras import PROJECT_NAME, __version__
+from src.pt2keras import PROJECT_NAME, __version__
 
 # Python supported version checks.
 if sys.version_info[:2] < (3, 7):
@@ -29,7 +29,7 @@ setuptools.setup(
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
     ],
-    package_dir={'': 'pt2keras'},
-    packages=setuptools.find_packages(where='pt2keras'),
+    package_dir={'': 'src'},
+    packages=setuptools.find_packages(where='src'),
     python_requires='>=3.7',
 )
