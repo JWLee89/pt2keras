@@ -29,7 +29,7 @@ setuptools.setup(
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
     ],
-    package_dir={'': 'src'},
-    packages=setuptools.find_packages(where='src'),
+    package_dir={'': 'pt2keras'},
+    packages=setuptools.find_packages(where='pt2keras'),
     python_requires='>=3.7',
 )

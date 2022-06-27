@@ -25,12 +25,20 @@ The following networks have been tested and are supported
 
 ## Installation 
 
-To install `pt2keras`, type in the following:
+Since the project has not yet been uploaded to pypi, right now the best method 
+of installing would be to clone the repo. 
 
-```shell
-# -U for upgrading existing packages
-pip install -U pt2keras
-```
+This will be updated on the release of 0.0.1
+
+[comment]: <> (To install `pt2keras`, type in the following:)
+
+[comment]: <> (```shell)
+
+[comment]: <> (# -U for upgrading existing packages)
+
+[comment]: <> (pip install -U pt2keras)
+
+[comment]: <> (```)
 
 ## How to use
 
