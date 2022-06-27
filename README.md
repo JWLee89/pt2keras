@@ -26,7 +26,17 @@ The following networks have been tested and are supported
 ## Installation 
 
 Since the project has not yet been uploaded to pypi, right now the best method 
-of installing would be to clone the repo. 
+of installing would be to clone the repo and run `setup.py`.
+
+```shell
+python setup.py install
+```
+
+Afterwards, go to a terminal and try the following: 
+
+```shell
+from pt2keras import Pt2Keras
+```
 
 This will be updated on the release of 0.0.1
 
