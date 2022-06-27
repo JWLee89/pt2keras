@@ -1,5 +1,6 @@
 import logging
 import typing as t
+import warnings
 
 import numpy as np
 import onnxruntime
@@ -16,6 +17,7 @@ def test_model_output(
     source_model: t.Union[nn.Module, onnxruntime.InferenceSession],
     keras_model: tf.keras.Model,
     pt_input_shape: t.Tuple,
+    strict: bool = False,
     atol=1e-4,
 ) -> None:
     """
@@ -56,21 +58,25 @@ def test_model_output(
         for source_tensor, keras_tensor in zip(output_source, output_keras):
             if isinstance(source_tensor, torch.Tensor):
                 source_tensor = source_tensor.detach().cpu().numpy()
-            is_approximately_equal(source_tensor, keras_tensor.numpy(), atol)
+            is_approximately_equal(source_tensor, keras_tensor.numpy(), atol, strict=strict)
     # Single outputs
     else:
         if isinstance(output_source, torch.Tensor):
             output_source = output_source.detach().cpu().numpy()
-        is_approximately_equal(output_source, output_keras, atol)
+        is_approximately_equal(output_source, output_keras, atol, strict=strict)
 
 
-def is_approximately_equal(output_source: np.ndarray, output_keras: np.ndarray, atol: float = 1e-4, node=None):
+def is_approximately_equal(
+    output_source: np.ndarray, output_keras: np.ndarray, atol: float = 1e-4, node=None, strict: bool = False
+):
     """
     Test the outputs of the two models for equality.
     Args:
         output_source: The output of a PyTorch model.
         output_keras: The output of the converted Keras model
         atol: The absolute tolerance parameter specified in numpy.
+        node: The node that we are testing. For debugging purposes
+        strict: If set to true, a strict check will be applied. Otherwise, a warning will be thrown
     """
     # Convert the PyTorch / onnx model into keras output format
     # E.g. (B, C, H, W) -> (B, H, W, C)
@@ -108,4 +114,9 @@ def is_approximately_equal(output_source: np.ndarray, output_keras: np.ndarray, 
         assertion_error_msg += f'onnxruntime: {output_source}\n'
         assertion_error_msg += f'keras: {output_keras}\n'
 
-    assert output_is_approximately_equal, assertion_error_msg
+    if strict:
+        assert output_is_approximately_equal, assertion_error_msg
+    elif not output_is_approximately_equal:
+        warnings.warn(f'The output shows some difference with atol: {atol}. Mean diff: {average_diff}')
+        warnings.warn(f'Onnx tensor: {output_source}')
+        warnings.warn(f'Keras tensor: {output_keras}')

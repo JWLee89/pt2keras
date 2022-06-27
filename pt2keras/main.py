@@ -65,19 +65,21 @@ class Pt2Keras:
     def set_logging_level(self, logging_level):
         Pt2Keras._LOGGER.setLevel(logging_level)
 
-    def convert(self, model, input_shape):
+    def convert(self, model, input_shape, strict: bool = False):
         """
         Perform conversion
         Args:
-            model:
-            input_shape:
+            model: The PyTorch / onnx model to convert
+            input_shape: The input Tensor shape
+            strict: If set to true, an error will be thrown if
+            any single tensor value deviates by a certain threshold.
 
         Returns:
-
+            The converted keras version of the PyTorch model
         """
         self._init_converters(model)
         self._validate()
-        return self.graph.convert(model, input_shape)
+        return self.graph.convert(model, input_shape, strict)
 
     def inspect(self, model: nn.Module) -> t.Tuple[t.List, t.List]:
         """
@@ -89,9 +91,6 @@ class Pt2Keras:
     def is_convertible(self, model):
         supported_layers, unsupported_layers = self.inspect(model)
         return len(unsupported_layers) == 0
-
-    def convert_layer(self, layer: nn.Module):
-        return self.graph.convert_layeR(layer)
 
 
 # Import converters during import

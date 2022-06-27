@@ -4,7 +4,6 @@ import typing as t
 from tensorflow import keras
 
 from ..graph import OnnxNode
-from ..util import to_tf
 from .common import converter
 
 
