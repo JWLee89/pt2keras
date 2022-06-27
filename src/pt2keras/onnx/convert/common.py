@@ -8,9 +8,9 @@ import onnx
 import onnxruntime as ort
 from onnx import helper
 
-from pt2keras.core.onnx.graph import Graph, OnnxNode, TestResults
-from pt2keras.core.onnx.testing.utils import is_approximately_equal
-from pt2keras.core.onnx.util import keras_input_to_pt
+from ..graph import Graph, OnnxNode, TestResults
+from ..testing.utils import is_approximately_equal
+from ..util import keras_input_to_pt
 
 _LOGGER = logging.getLogger('onnx:converter')
 

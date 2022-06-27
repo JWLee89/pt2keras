@@ -1,6 +1,6 @@
 import typing as t
 
-from pt2keras import Pt2Keras
+from src.pt2keras import Pt2Keras
 
 
 def input_sizes_to_test():

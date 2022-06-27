@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def get_project_root() -> Path:
-    return Path(__file__).parent.parent.parent
+    return Path(__file__).parent.parent
 
 
 def get_converter_absolute_path() -> str:
@@ -11,4 +11,4 @@ def get_converter_absolute_path() -> str:
     Returns:
         The absolute path of the converter package
     """
-    return f'{get_project_root()}/pt2keras/core/onnx/convert'
+    return f'{get_project_root()}/pt2keras/onnx/convert'
