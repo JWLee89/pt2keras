@@ -10,6 +10,7 @@ _AVAILABLE_DEMO_MODELS = (
     'vgg19',
     'alexnet',
     'inception_v3',
+    # 'googlenet',
     # And the efficient_b{i} series
 ) + tuple(f'efficientnet_b{i}' for i in range(8))
 
@@ -27,6 +28,10 @@ def get_arg_parser() -> argparse.ArgumentParser:
         default=[1, 3, 224, 224],
         help='Shape of the input. For vision models, should be of shape ' '(B, C, H, W).',
     )
+    parser.add_argument(
+        '--debug', action='store_true', help='Specify --debug to see the ' 'complete rundown of conversion process'
+    )
+    parser.set_defaults(debug=False)
     return parser
 
 
@@ -59,4 +64,8 @@ def get_torchvision_model(model_name: str) -> torch.nn.Module:
         from torchvision.models.inception import inception_v3
 
         model_fn = inception_v3
+    elif model_name.startswith('googlenet'):
+        from torchvision.models.googlenet import googlenet
+
+        model_fn = googlenet
     return model_fn

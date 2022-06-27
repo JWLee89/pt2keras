@@ -4,6 +4,7 @@ import typing as t
 import numpy as np
 import onnx
 import tensorflow as tf
+import torch
 from tensorflow import keras
 
 _LOGGER = logging.getLogger('util::Test')
@@ -35,7 +36,7 @@ def pt_input_to_keras(pt_shaped_input_data) -> t.Tuple:
     return output_data
 
 
-def keras_input_to_pt_shape(input_data: np.ndarray) -> t.Tuple:
+def keras_input_to_pt(input_data: np.ndarray) -> t.Any:
     """
     Given an input data, if it is a 4d input,
     such as an image or conv intermediate feature,
@@ -47,17 +48,25 @@ def keras_input_to_pt_shape(input_data: np.ndarray) -> t.Tuple:
     Returns:
         The converted data
     """
-    if not isinstance(input_data, np.ndarray) and not keras.backend.is_keras_tensor(input_data):
+    if not hasattr(input_data, 'shape'):
         raise ValueError('Not an np.ndarray or KerasTensor')
 
     # Transpose function varies based on data type. can
-    transpose_function = np.transpose if isinstance(input_data, np.ndarray) else tf.transpose
+    transpose_function = None
+    if isinstance(input_data, np.ndarray):
+        transpose_function = np.transpose
+    elif isinstance(input_data, torch.Tensor):
+        transpose_function = torch.permute
+    elif tf.is_tensor(input_data):
+        transpose_function = tf.transpose
+    else:
+        raise ValueError('Must be PyTorch / TF tensor or numpy array')
     input_dims = len(input_data.shape)
     if input_dims >= 4:
         # (B, C, H, W) -> (B, H, W, C)
         transpose_vector = (0, input_dims - 1) + tuple(i for i in range(1, input_dims - 1))
-        return transpose_function(input_data, transpose_vector).shape
-    return input_data.shape
+        return transpose_function(input_data, transpose_vector)
+    return input_data
 
 
 def get_tensor_data(initializer: onnx.TensorProto) -> None:

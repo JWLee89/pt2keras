@@ -19,7 +19,8 @@ The following networks have been tested and are supported
 - MobileNetV2
 - ResNet
 - AlexNet
-- 
+- Inception_v3
+- Vgg
 
 ## Installation 
 

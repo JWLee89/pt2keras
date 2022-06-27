@@ -11,6 +11,7 @@ import torch.nn as nn
 from ..util import pt_input_to_keras
 
 _LOGGER = logging.getLogger(__name__)
+np.set_printoptions(formatter={'float': lambda x: f'{x:0.9f}'})
 
 
 def test_model_output(
@@ -87,9 +88,9 @@ def is_approximately_equal(
     if len(output_source.shape) == len(output_keras.shape) - 1:
         for pt_dim, keras_dim in zip(output_source.shape, output_keras.shape[1:]):
             assert pt_dim == keras_dim, (
-                'Batch dimension may have been removed from PyTorch model, but '
+                'Batch dimension may have been removed from ONNX model, but '
                 f'the input dimensions still dont match. '
-                f'PT shape: {output_source.shape}'
+                f'ONNX shape: {output_source.shape}'
                 f'Keras shape: {output_keras.shape}'
             )
         _LOGGER.warning(
@@ -97,11 +98,14 @@ def is_approximately_equal(
             'Does your model use nn.Flatten() or torch.flatten() with start_dim=1 ?'
         )
     else:
-        assert output_source.shape == output_keras.shape, (
-            'PyTorch and Keras model output shape should be equal. '
-            f'PT shape: {output_source.shape}, '
-            f'Keras shape: {output_keras.shape}'
+        error_msg = (
+            'ONNX and Keras model output shape should be equal. '
+            f'ONNX shape: {output_source.shape}, '
+            f'Keras shape: {output_keras.shape}, '
         )
+        if node:
+            error_msg += f'{node}'
+        assert output_source.shape == output_keras.shape, error_msg
 
     # Average diff over all axis
     average_diff = np.mean(output_source - output_keras)
@@ -118,5 +122,5 @@ def is_approximately_equal(
         assert output_is_approximately_equal, assertion_error_msg
     elif not output_is_approximately_equal:
         warnings.warn(f'The output shows some difference with atol: {atol}. Mean diff: {average_diff}')
-        warnings.warn(f'Onnx tensor: {output_source}')
+        warnings.warn(f'ONNX tensor: {output_source}')
         warnings.warn(f'Keras tensor: {output_keras}')

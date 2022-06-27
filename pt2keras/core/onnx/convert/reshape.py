@@ -22,7 +22,6 @@ def reshape(node: OnnxNode, _, *inputs):
     input_layer, shape_arr = inputs
     output_layer = None
     attributes = node.attributes
-    print(f'RESHAPE ------------------------ {attributes}, inputs: {inputs}')
     if isinstance(shape_arr, np.ndarray):
 
         if isinstance(input_layer, np.ndarray):
@@ -113,6 +112,10 @@ def concat(node: OnnxNode, _, *inputs):
     attributes = node.attributes
     axis = attributes['axis']
 
+    # PyTorch channel. Append to end
+    if axis == 1:
+        axis = -1
+
     layer_input = inputs
     output_layer = None
     if all([isinstance(layer, np.ndarray) for layer in inputs]):
@@ -134,14 +137,12 @@ def concat(node: OnnxNode, _, *inputs):
 
                     return tf.concat(x, axis=axis)
 
-                print(f'Concat inputs: {inputs}')
-
                 output_layer = keras.layers.Lambda(target_layer, name=f'{node.name}_CHW')
                 output = output_layer(layer_input)
         else:
             output = layer_input[0]
 
-    return output, output_layer
+    return output, None
 
 
 @converter('Slice')

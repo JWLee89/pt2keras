@@ -10,7 +10,7 @@ from onnx import helper
 
 from pt2keras.core.onnx.graph import Graph, OnnxNode, TestResults
 from pt2keras.core.onnx.testing.utils import is_approximately_equal
-from pt2keras.core.onnx.util import keras_input_to_pt_shape
+from pt2keras.core.onnx.util import keras_input_to_pt
 
 _LOGGER = logging.getLogger('onnx:converter')
 
@@ -49,7 +49,7 @@ def _test_double_input_operation(node: OnnxNode, opset_version, input_keras_laye
         if not isinstance(onnx_input_data, np.ndarray):
             if len(input_shape) == 4:
                 data_to_input = onnx_input_data
-                input_shape = keras_input_to_pt_shape(data_to_input)
+                input_shape = keras_input_to_pt(data_to_input).shape
             else:
                 data_to_input = onnx_input_data
                 input_shape = onnx_input_data.shape
@@ -64,7 +64,7 @@ def _test_double_input_operation(node: OnnxNode, opset_version, input_keras_laye
     onnx_input_dict = {}
     keras_input_list = []
     for key, value in input_dict.items():
-        onnx_input_dict[key] = np.random.rand(*keras_input_to_pt_shape(value)).astype(np.float32)
+        onnx_input_dict[key] = np.random.rand(*keras_input_to_pt(value).shape).astype(np.float32)
         keras_input = onnx_input_dict[key]
         if len(onnx_input_dict[key].shape) >= 4:
             keras_input = keras_input.transpose((0, 2, 3, 1))
@@ -79,7 +79,7 @@ def _test_double_input_operation(node: OnnxNode, opset_version, input_keras_laye
     # Create graph output node
     output_nodes = []
     for i, output in enumerate(node.output_nodes):
-        output_shape = keras_input_to_pt_shape(keras_output)
+        output_shape = keras_input_to_pt(keras_output).shape
         value = helper.make_tensor_value_info(output, onnx.AttributeProto.FLOAT, output_shape)
         output_nodes.append(value)
 
@@ -133,7 +133,7 @@ def _test_operation(node: OnnxNode, opset_version, input_keras_layer, output_ker
         if node.op_type == 'Constant':
             _LOGGER.debug(f'Skipping test for Constant node: {node}')
         else:
-            _LOGGER.warning(f'Output keras layer not available for: {node}. ' f'Skipping test.')
+            _LOGGER.warning(f'Output keras layer not available. Skipping test for node: \n {node}. ')
         return False
 
     # Create attributes for making node for onnxruntime inference
@@ -158,7 +158,7 @@ def _test_operation(node: OnnxNode, opset_version, input_keras_layer, output_ker
     input_dict = {}
     start_index = 0
     if len(node.input_nodes) - 1 == len(inputs):
-        input_shape = keras_input_to_pt_shape(input_keras_layer)
+        input_shape = keras_input_to_pt(input_keras_layer).shape
         node_name = node.input_nodes[0]
         value = helper.make_tensor_value_info(node_name, onnx.AttributeProto.FLOAT, input_shape)
         input_dict[node_name] = np.random.rand(*input_shape).astype(np.float32)
@@ -172,7 +172,7 @@ def _test_operation(node: OnnxNode, opset_version, input_keras_layer, output_ker
         if not isinstance(onnx_input_data, np.ndarray):
             if len(input_shape) == 4:
                 data_to_input = onnx_input_data
-                input_shape = keras_input_to_pt_shape(data_to_input)
+                input_shape = keras_input_to_pt(data_to_input).shape
             else:
                 data_to_input = onnx_input_data
                 input_shape = onnx_input_data.shape
@@ -195,7 +195,7 @@ def _test_operation(node: OnnxNode, opset_version, input_keras_layer, output_ker
 
     # TODO: Make sure that we can receive multiple inputs
     if node_to_update:
-        input_dict[key] = np.random.randn(*keras_input_to_pt_shape(input_keras_layer)).astype(np.float32)
+        input_dict[key] = np.random.randn(*keras_input_to_pt(input_keras_layer).shape).astype(np.float32)
         onnx_tensor = input_dict[key]
 
     if len(input_keras_layer.shape) == 4:
@@ -211,7 +211,7 @@ def _test_operation(node: OnnxNode, opset_version, input_keras_layer, output_ker
     # Create graph output node
     output_nodes = []
     for i, output in enumerate(node.output_nodes):
-        output_shape = keras_input_to_pt_shape(keras_output)
+        output_shape = keras_input_to_pt(keras_output).shape
         value = helper.make_tensor_value_info(output, onnx.AttributeProto.FLOAT, output_shape)
         output_nodes.append(value)
 
