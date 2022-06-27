@@ -8,7 +8,7 @@ import typing as t
 import numpy as np
 import pytest
 
-from src.pt2keras.onnx.util import keras_input_to_pt, pt_input_to_keras
+from src.pt2keras.onnx_backend.util import keras_input_to_pt, pt_input_to_keras
 
 
 @pytest.mark.parametrize(

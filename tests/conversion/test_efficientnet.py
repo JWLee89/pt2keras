@@ -18,7 +18,7 @@ from tests.common import do_conversion
     ],
 )
 @pytest.mark.parametrize('input_sizes', [(1, 3, 32, 16)])
-def test_efficientnet(model_class, input_sizes):
+def test_efficientnet(converter, model_class, input_sizes):
     """
     Test conversion of EfficientNet class models.
     An error will be thrown if Unsuccessful
@@ -26,4 +26,4 @@ def test_efficientnet(model_class, input_sizes):
         model_class: The model class to test
         input_sizes: The size of the inputs
     """
-    do_conversion(model_class, input_sizes)
+    do_conversion(converter, model_class, input_sizes, strict=True)

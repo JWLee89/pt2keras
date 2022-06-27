@@ -129,11 +129,12 @@ def _test_operation(node: OnnxNode, opset_version, input_keras_layer, output_ker
     Returns:
         True if tested, otherwise return False.
     """
+    logger = logging.getLogger(f'{__name__}._test_operation')
     if output_keras_layer is None:
         if node.op_type == 'Constant':
-            _LOGGER.debug(f'Skipping test for Constant node: {node}')
+            logger.debug(f'Skipping test for Constant node: {node}')
         else:
-            _LOGGER.warning(f'Output keras layer not available. Skipping test for node: \n {node}. ')
+            logger.warning(f'Output keras layer not available. Skipping test for node: \n {node}. ')
         return False
 
     # Create attributes for making node for onnxruntime inference
@@ -223,28 +224,36 @@ def _test_operation(node: OnnxNode, opset_version, input_keras_layer, output_ker
         output_nodes,  # outputs
     )
 
-    # Create Model
-    model_def = helper.make_model(graph_def, producer_name='test_layer')
-    model_def.opset_import[0].version = opset_version
-    onnx.checker.check_model(model_def)
+    try:
+        # Create Model
+        model_def = helper.make_model(graph_def, producer_name='test_layer')
+        model_def.opset_import[0].version = opset_version
+        onnx.checker.check_model(model_def)
 
-    # Prepare session for inference
-    onnx_session = ort.InferenceSession(model_def.SerializeToString())
-    onnx_start_time = time.monotonic()
-    onnx_output = onnx_session.run(None, input_dict)
-    onnx_runtime_ms = (time.monotonic() - onnx_start_time) * 1000
+        # Prepare session for inference
+        onnx_session = ort.InferenceSession(model_def.SerializeToString())
+        onnx_start_time = time.monotonic()
+        onnx_output = onnx_session.run(None, input_dict)
+        onnx_runtime_ms = (time.monotonic() - onnx_start_time) * 1000
 
-    _LOGGER.debug(
-        f'Node: {node.name}, op: {node.op_type}. \n'
-        f'onnxruntime speed: {onnx_runtime_ms} ms\n'
-        f'keras speed: {keras_runtime_ms} ms'
-    )
+        logger.debug(
+            f'Node: {node.name}, op: {node.op_type}. \n'
+            f'onnxruntime speed: {onnx_runtime_ms} ms\n'
+            f'keras speed: {keras_runtime_ms} ms'
+        )
 
-    if len(onnx_output) == 1:
-        onnx_output = onnx_output[0]
+        if len(onnx_output) == 1:
+            onnx_output = onnx_output[0]
 
-    is_approximately_equal(onnx_output, keras_output, node=node)
-    return True
+        is_approximately_equal(onnx_output, keras_output, node=node)
+        return True
+    except Exception as ex:
+        logger.warning(
+            f'Error while creating automated test for Layer: {output_keras_layer}.\n '
+            f'node: {node}. \n'
+            f'Exception: {ex}'
+        )
+        return False
 
 
 def converter(onnx_op: str, override: bool = False, op_testing_fn: t.Callable = None):

@@ -6,8 +6,13 @@ from tensorflow import keras
 from tensorflow.keras import backend as K
 
 from ..graph import OnnxNode
-from ..util import tensor_proto_to_tf_dtype, to_tf
+from ..util import tensor_proto_to_tf_dtype
 from .common import converter
+
+
+@converter('Identity')
+def identity(node: OnnxNode, input_layer, *inputs):
+    return inputs, None
 
 
 @converter('Constant')
@@ -24,15 +29,16 @@ def constant(node: OnnxNode, input_layer, *inputs):
 @converter('Add')
 def add(node: OnnxNode, input_layer, lhs, rhs):
     """
-    TODO: Add unit test
     Args:
-        node:
-        input_layer:
-        lhs:
-        rhs:
+        node: The current node inside of the onnx computational graph
+        input_layer: The input layer. Since there are two inputs,
+        this value will be the first input layer (LHS)
+        lhs: The left hand side value. E.g.
+        in 2 + 4, lhs will be 2
+        rhs: The right hand side value
 
     Returns:
-
+        The keras layer with the computed output node
     """
     logger = logging.getLogger('ops::Add')
     try:
@@ -64,11 +70,12 @@ def multiply(node: OnnxNode, input_layer, lhs, rhs):
     """
     TODO: add unit test
     Args:
-        node:
-        input_layer:
-        lhs:
-        rhs:
-
+        node: The current computational node
+        input_layer: The input layer. Since we need two input layers, this value
+        will be ignored.
+        lhs: The left hand side value. E.g.
+        in 2 + 4, lhs will be 2
+        rhs: The right hand side value
     Returns:
 
     """
@@ -199,24 +206,15 @@ def gemm(node: OnnxNode, input_layer, *input_tensor):
 
 @converter('MatMul')
 def mat_mul(node: OnnxNode, input_layer, *inputs):
-    print(f'Input length: {len(inputs)}. First input: {inputs[0].shape} second input: {inputs[1].shape}')
-
     def mat_mul_lambda(a, b):
-        import tensorflow.keras.backend as K
-
         if not isinstance(a, np.ndarray):
             a = a.numpy()
         if not isinstance(b, np.ndarray):
             b = b.numpy()
-        output = np.matmul(a, b)
-
-        print(f'Numpy: {output.shape}, {output}')
-        return output
+        return np.matmul(a, b)
 
     # output_layer = keras.layers.Dense(inputs[1].shape[-1], use_bias=False)
     output_layer = keras.layers.Lambda(lambda t: mat_mul_lambda(t[0], t[1]))
     output = output_layer(input_layer)
-
-    print(f'MatMul output layer: {output}, layer: {output_layer}')
 
     return output, output_layer
