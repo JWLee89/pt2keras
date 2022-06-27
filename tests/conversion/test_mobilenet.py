@@ -1,7 +1,7 @@
 import pytest
 import torchvision.models.mobilenet as mobilenet
 
-from tests.common import get_converter, input_sizes_to_test
+from tests.common import do_conversion, input_sizes_to_test
 
 
 @pytest.mark.skip('Currently, lot of difference between outputs in mobilenet_v3_large and small')
@@ -22,7 +22,4 @@ def test_mobilenet(model_class, input_sizes):
         model_class: The model class to test
         input_sizes: The size of the inputs
     """
-    model = model_class().eval()
-    converter = get_converter(model, input_sizes)
-    # Check whether conversion is successful. Error will be thrown if it fails
-    converter.convert()
+    do_conversion(model_class, input_sizes)

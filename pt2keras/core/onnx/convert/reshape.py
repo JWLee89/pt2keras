@@ -22,7 +22,6 @@ def reshape(node: OnnxNode, _, *inputs):
     input_layer, shape_arr = inputs
     output_layer = None
     attributes = node.attributes
-    print(f'RESHAPE ------------------------ {attributes}, inputs: {inputs}')
     if isinstance(shape_arr, np.ndarray):
 
         if isinstance(input_layer, np.ndarray):
@@ -82,21 +81,11 @@ def flatten(node: OnnxNode, input_layer, *input_tensor):
         raise AttributeError('Number of inputs is not equal to 1 for Flatten()')
 
     input_tensor = input_tensor[0]
-
-    def target(x):
-        import tensorflow as tf
-
-        # Need to reshape, otherwise, we won't get the same output as PyTorch
-        if len(x.shape) == 4:
-            x = tf.transpose(x, [0, 3, 1, 2])
-        t = tf.reshape(x, (1, -1))
-        return t
-
-    custom = keras.layers.Lambda(target)
-    # For some reason, this is not working. We have to transpose data ... sadface T_T
-    # output_layer = keras.layers.Flatten(data_format='channels_first')
-    output = custom(input_tensor)
-    return output, custom
+    transpose_custom = keras.layers.Permute((3, 1, 2))
+    tensor_chw = transpose_custom(input_tensor)
+    output_layer = keras.layers.Flatten(name=f'{node.name}_flatten')
+    output = output_layer(tensor_chw)
+    return output, output_layer
 
 
 @converter('Shape')
@@ -109,10 +98,8 @@ def shape(node: OnnxNode, _, *inputs):
 
     shapes = []
     for i in input_layer.shape:
-        if i is not None:
-            shapes.append(i)
-        else:
-            shapes.append(None)
+        # Note that the value can be "None" if it is dynamic
+        shapes.append(i)
 
     output = np.array(shapes)
     return output
@@ -124,6 +111,10 @@ def concat(node: OnnxNode, _, *inputs):
 
     attributes = node.attributes
     axis = attributes['axis']
+
+    # PyTorch channel. Append to end
+    if axis == 1:
+        axis = -1
 
     layer_input = inputs
     output_layer = None
@@ -144,15 +135,14 @@ def concat(node: OnnxNode, _, *inputs):
                 def target_layer(x, axis=axis):
                     import tensorflow as tf
 
-                    x = tf.concat(x, axis=axis)
-                    return x
+                    return tf.concat(x, axis=axis)
 
-                output_layer = keras.layers.Lambda(target_layer, name='%s_CHW' % node.name)
+                output_layer = keras.layers.Lambda(target_layer, name=f'{node.name}_CHW')
                 output = output_layer(layer_input)
         else:
             output = layer_input[0]
 
-    return output, output_layer
+    return output, None
 
 
 @converter('Slice')
@@ -234,9 +224,7 @@ def slice_inputs(node: OnnxNode, _, *inputs):
 
 @converter('Unsqueeze')
 def unsqueeze(node: OnnxNode, _, *inputs):
-    attributes = node.attributes
     input_data = inputs[0]
-    print(f'Attributes: {attributes}')
 
     def target_layer(x):
         from tensorflow import keras

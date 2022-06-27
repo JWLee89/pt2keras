@@ -11,7 +11,8 @@ from onnx import numpy_helper
 from onnx.helper import printable_node
 from tensorflow import keras
 
-from .util import get_graph_output_shape, get_graph_shape_info, test_model_output
+from .testing.utils import test_model_output
+from .util import get_graph_output_info, get_graph_shape_info
 
 
 class Graph:
@@ -23,7 +24,7 @@ class Graph:
     Keras format
     """
 
-    def __init__(self, model: t.Union[nn.Module, str, onnx.ModelProto], input_shape: t.Tuple, opset_version: int = 13):
+    def __init__(self, opset_version: int = 13):
         """
         By default the onnx graph is designed to convert PyTorch onnx
         models to Keras. By making small modifications and writing converters,
@@ -33,18 +34,46 @@ class Graph:
         is designed to work with models in the computer vision fields, that generally
         have at most, 4 dimensional inputs
         """
-        self.pytorch_input_shape = input_shape
         self.opset_version = opset_version
 
-        # Added as class object for unit testing
-        self.test_stats = None
-        self.model = model
+        # Model variables. This will be initialized when load_model is called.
+        self.model = None
+        self.pytorch_input_shape = None
+        self.output_names = None
 
+        self.node_dict = OrderedDict()
+        # The computational graph value we are building up
+        self.computational_graph = {}
+        # This is for accessing keras input cache
+        self.forward_input_cache = {}
+
+    def _set_onnx_rt_session(self, onnx_path: str):
+        """
+        Given the path to onnx model, create and set the onnx runtime session
+        object property for the given Graph instance
+        Args:
+            onnx_path: The name of the onnx path
+        """
+        self.onnx_model = onnx.load(onnx_path)
+        onnx.checker.check_model(self.onnx_model)
+        self.ort_session = ort.InferenceSession(onnx_path)
+
+    def _load_model(self, model: t.Union[nn.Module, str], input_shape: t.Tuple):
+        """
+        Given a model, load the model and create the onnx runtime session object
+        Args:
+            model: The model or onnx model path.
+            input_shape: The shape of the input to be fed into the neural network.
+        """
+        self.model = model
+        self.pytorch_input_shape = input_shape
         if isinstance(self.model, nn.Module):
             # For now, we assume that there is only a single input
             # We can later change this to support multiple inputs
             dummy_input = torch.randn(input_shape)
             output = self.model(dummy_input)
+
+            # Parse output names
             self.output_names = []
             if isinstance(output, (t.Tuple, t.List)):
                 for i in range(len(output)):
@@ -52,6 +81,7 @@ class Graph:
             else:
                 self.output_names.append('output_0')
 
+            # Save PyTorch model as .onnx
             hash_str = f'__{hash(model)}__.onnx'
             torch.onnx.export(
                 self.model,
@@ -66,39 +96,15 @@ class Graph:
             )
 
             # Check model and create onnx runtime session for inference
-            self.onnx_model = onnx.load(hash_str)
-            self.ort_session = ort.InferenceSession(hash_str)
-            onnx.checker.check_model(self.onnx_model)
+            self._set_onnx_rt_session(hash_str)
             if os.path.exists(hash_str):
                 os.remove(hash_str)
-
         elif isinstance(self.model, str):
-            self.onnx_model = onnx.load(model)
-            onnx.checker.check_model(self.onnx_model)
-            self.model = ort.InferenceSession(self.onnx_model.SerializeToString())
+            self._set_onnx_rt_session(model)
         else:
             raise ValueError(
                 f'Invalid model type: {self.model}. Please pass in ' f'PyTorch model or onnx model string path.'
             )
-
-        # For now, assume we are working with models that have a single input.
-        # we will later need to test this with models that have multiple inputs
-        self.output_names = [output['name'] for output in get_graph_output_shape(self.onnx_model.graph)]
-
-        self.node_dict = OrderedDict()
-        # The computational graph value we are building up
-        self.computational_graph = {}
-        # This is for accessing keras input cache
-        self.forward_input_cache = {}
-
-        # initialization phase:
-        # ------------------------------------------------------
-
-        # 1. Do forward pass over graphs to build up graph metadata
-        self._init_graph()
-
-        # 2. Initialize weight vectors from onnx graph
-        self._initialize_weights()
 
     def inspect(self) -> t.Tuple[t.List, t.List]:
         """
@@ -141,14 +147,31 @@ class Graph:
                     if constant_node_output not in self.computational_graph:
                         self.computational_graph[constant_node_output] = onnx_node_obj.attributes['value']
 
-    def _convert(self):
+    def convert(self, model: t.Union[nn.Module, str], input_shape: t.Tuple, strict: bool = False):
         """
         Convert the PyTorch model into Keras
         """
+        # initialization phase:
+        # ------------------------------------------------------
+
+        # 1. Load the model
+        self._load_model(model, input_shape)
+
+        # 2. Do forward pass over graphs to build up graph metadata
+        self._init_graph()
+
+        # 3. Initialize weight vectors from onnx graph
+        self._initialize_weights()
+
+        # 4. Build keras model during second forward pass
         input_shape = self.pytorch_input_shape
 
         # Change image shape from BCHW to BHWC (TensorFlow / Keras default shape)
         dims = (i for i in range(len(input_shape))) if len(input_shape) != 4 or input_shape[-1] == 3 else (0, 2, 3, 1)
+
+        # For now, assume we are working with models that have a single input.
+        # we will later need to test this with models that have multiple inputs
+        self.output_names = [output['name'] for output in get_graph_output_info(self.onnx_model.graph)]
 
         # For now, assume we are working with models that have a single input.
         # we will later need to test this with models that have multiple inputs
@@ -175,7 +198,7 @@ class Graph:
         output_list = []
 
         # Create a new test stats object for each conversion run.
-        self.test_stats = TestResults()
+        test_stats = TestResults()
 
         # Convert the model
         for node_key, node in self.node_dict.items():
@@ -212,7 +235,7 @@ class Graph:
 
             # Convert to keras
             outputs = conversion_func(
-                node, input_keras_layer, self.computational_graph, self.opset_version, self.test_stats, *node_inputs
+                node, input_keras_layer, self.computational_graph, self.opset_version, test_stats, *node_inputs
             )
 
             self.forward_input_cache[node.name] = outputs
@@ -224,7 +247,7 @@ class Graph:
             Graph._LOGGER.info(f'Successfully converted: {node}')
 
         # Print model conversion result if needed
-        self._LOGGER.info('Model conversion report: ###################### \n' f'{self.test_stats.get_test_results()}')
+        self._LOGGER.info('Model conversion report: ###################### \n' f'{test_stats.get_test_results()}')
 
         if has_unsupported_ops:
             unsupported_operations = '\n- '.join(unsupported_ops)
@@ -240,7 +263,7 @@ class Graph:
         model = keras.Model(inputs, outputs)
         # Test the Keras model output.
         # Error will be asserted if the output dimensions or values are very different.
-        test_model_output(self.model, model, self.pytorch_input_shape)
+        test_model_output(self.model, model, self.pytorch_input_shape, strict)
         return model
 
     def _initialize_weights(self):

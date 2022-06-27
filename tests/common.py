@@ -1,3 +1,5 @@
+import typing as t
+
 from pt2keras import Pt2Keras
 
 
@@ -15,5 +17,19 @@ def input_sizes_to_test():
     ]
 
 
-def get_converter(model, input_shape):
-    return Pt2Keras(model, input_shape)
+def get_converter():
+    return Pt2Keras()
+
+
+def do_conversion(model_class: t.Any, input_sizes: t.Tuple) -> None:
+    """
+    A common function for running a conversion operation.
+    This will be run for each type of model that is supported
+    Args:
+        model_class: The nn.Module class item
+        input_sizes: A tuple specifying the dimension of the input
+    """
+    model = model_class().eval()
+    converter = get_converter()
+    # Check whether conversion is successful. Error will be thrown if it fails
+    converter.convert(model, input_sizes)

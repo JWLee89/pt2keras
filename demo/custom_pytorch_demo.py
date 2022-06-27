@@ -1,3 +1,7 @@
+"""
+To run the script, type in the following
+python custom_pytorch_demo.py --input_shape 1 3 224 224
+"""
 from copy import deepcopy
 
 import numpy as np
@@ -48,7 +52,7 @@ if __name__ == '__main__':
     shape = args.input_shape
     model = DummyModel()
 
-    converter = Pt2Keras(model, shape)
+    converter = Pt2Keras()
 
     x_pt = torch.randn(shape)
     # Generate dummy inputs
@@ -60,7 +64,7 @@ if __name__ == '__main__':
 
     print(f'pt shape: {x_pt.shape}, x_keras.shape: {x_keras.shape}')
 
-    keras_model: tf.keras.Model = converter.convert()
+    keras_model: tf.keras.Model = converter.convert(model, shape)
 
     # Make PT model the same input dimension as Keras
     # If the output is >= 4 dimensional
