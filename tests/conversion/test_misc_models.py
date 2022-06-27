@@ -1,5 +1,6 @@
 import pytest
 from torchvision.models.alexnet import alexnet
+from torchvision.models.googlenet import googlenet
 from torchvision.models.inception import inception_v3
 
 from tests.common import do_conversion
@@ -10,6 +11,7 @@ from tests.common import do_conversion
     [
         alexnet,
         inception_v3,
+        googlenet,
     ],
 )
 @pytest.mark.parametrize('input_sizes', [(1, 3, 224, 224)])

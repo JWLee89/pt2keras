@@ -21,6 +21,7 @@ The following networks have been tested and are supported
 - AlexNet
 - Inception_v3
 - Vgg
+- GoogleNet
 
 ## Installation 
 

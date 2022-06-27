@@ -10,7 +10,7 @@ _AVAILABLE_DEMO_MODELS = (
     'vgg19',
     'alexnet',
     'inception_v3',
-    # 'googlenet',
+    'googlenet',
     # And the efficient_b{i} series
 ) + tuple(f'efficientnet_b{i}' for i in range(8))
 
