@@ -4,7 +4,7 @@ import typing as t
 
 import torch.nn as nn
 
-from .onnx.graph import Graph
+from .onnx_backend.graph import Graph
 from .paths import get_converter_absolute_path
 
 
@@ -18,7 +18,6 @@ class Pt2Keras:
         self.graph = None
         self.opset_version = opset_version
         logging.basicConfig()
-        import_converters()
 
     def _validate(self):
         if self.intermediate_rep not in Pt2Keras._AVAILABLE_IR:
@@ -101,6 +100,13 @@ def import_converters():
         for entry in os.scandir(converter_directory_path):
             if entry.is_file():
                 # remove '.py' from import statement
-                string = f'from src.pt2keras.onnx.convert import {entry.name}'[:-3]
-                exec(string)
+                try:
+                    import_statement = f'from pt2keras.onnx_backend.convert import {entry.name[:-3]}'
+                    exec(import_statement)
+                except Exception:
+                    import_statement = f'from .onnx_backend.convert import {entry.name[:-3]}'
+                    exec(import_statement)
         Pt2Keras._CONVERTERS_IMPORTED = True
+
+
+import_converters()

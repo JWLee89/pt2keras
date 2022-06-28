@@ -11,4 +11,4 @@ def get_converter_absolute_path() -> str:
     Returns:
         The absolute path of the converter package
     """
-    return f'{get_project_root()}/pt2keras/onnx/convert'
+    return f'{get_project_root()}/pt2keras/onnx_backend/convert'
