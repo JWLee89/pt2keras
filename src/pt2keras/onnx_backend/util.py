@@ -7,7 +7,7 @@ import tensorflow as tf
 import torch
 from tensorflow import keras
 
-_LOGGER = logging.getLogger('util::Test')
+_LOGGER = logging.getLogger(__name__)
 
 
 def pt_input_to_keras(pt_shaped_input_data) -> t.Tuple:
@@ -163,19 +163,27 @@ def get_graph_output_info(graph: onnx.GraphProto, transpose_matrix: t.Union[t.Li
     """
     Args:
         graph: The graph we want to analyze
-        transpose_matrix:
+        transpose_matrix: The tranpose matrix that we want to apply on the shape of the graph.
 
     Returns:
         A list containing information on the graph output node
     """
     shape_info = []
-    for node in graph.input:
+    for node in graph.output:
         data = get_node_property(node, transpose_matrix)
         shape_info.append(data)
     return shape_info
 
 
-def get_node_property(node, transpose_matrix: t.Union[t.List, t.Tuple] = None) -> t.Dict:
+def get_node_property(node: onnx.NodeProto, transpose_matrix: t.Union[t.List, t.Tuple] = None) -> t.Dict:
+    """
+    Given a node and the transpose matrix, output a dictionary containing the node properties.
+    Args:
+        node: The node that we want to evaluate and retrieve the node property
+        transpose_matrix: The transformation that we want to apply to the nodes input shape
+    Returns:
+        A dictionary containing the node properties.
+    """
     data = {NodeProperties.name: node.name}
     input_shape = []
     # Grab dimension information

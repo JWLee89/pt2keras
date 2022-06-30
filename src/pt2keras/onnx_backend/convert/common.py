@@ -223,28 +223,32 @@ def _test_operation(node: OnnxNode, opset_version, input_keras_layer, output_ker
         output_nodes,  # outputs
     )
 
-    # Create Model
-    model_def = helper.make_model(graph_def, producer_name='test_layer')
-    model_def.opset_import[0].version = opset_version
-    onnx.checker.check_model(model_def)
+    try:
+        # Create Model
+        model_def = helper.make_model(graph_def, producer_name='test_layer')
+        model_def.opset_import[0].version = opset_version
+        onnx.checker.check_model(model_def)
 
-    # Prepare session for inference
-    onnx_session = ort.InferenceSession(model_def.SerializeToString())
-    onnx_start_time = time.monotonic()
-    onnx_output = onnx_session.run(None, input_dict)
-    onnx_runtime_ms = (time.monotonic() - onnx_start_time) * 1000
+        # Prepare session for inference
+        onnx_session = ort.InferenceSession(model_def.SerializeToString())
+        onnx_start_time = time.monotonic()
+        onnx_output = onnx_session.run(None, input_dict)
+        onnx_runtime_ms = (time.monotonic() - onnx_start_time) * 1000
 
-    _LOGGER.debug(
-        f'Node: {node.name}, op: {node.op_type}. \n'
-        f'onnxruntime speed: {onnx_runtime_ms} ms\n'
-        f'keras speed: {keras_runtime_ms} ms'
-    )
+        _LOGGER.debug(
+            f'Node: {node.name}, op: {node.op_type}. \n'
+            f'onnxruntime speed: {onnx_runtime_ms} ms\n'
+            f'keras speed: {keras_runtime_ms} ms'
+        )
 
-    if len(onnx_output) == 1:
-        onnx_output = onnx_output[0]
+        if len(onnx_output) == 1:
+            onnx_output = onnx_output[0]
 
-    is_approximately_equal(onnx_output, keras_output, node=node)
-    return True
+        is_approximately_equal(onnx_output, keras_output, node=node)
+        return True
+    except Exception as ex:
+        _LOGGER.warning(f'Error while creating automated test for node: {node}. \n' f'Exception: {ex}')
+        return False
 
 
 def converter(onnx_op: str, override: bool = False, op_testing_fn: t.Callable = None):

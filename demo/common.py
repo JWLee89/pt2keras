@@ -11,6 +11,8 @@ _AVAILABLE_DEMO_MODELS = (
     'alexnet',
     'inception_v3',
     'googlenet',
+    # TODO: need to add support for batch normalization
+    # 'densenet121',
     # And the efficient_b{i} series
 ) + tuple(f'efficientnet_b{i}' for i in range(8))
 
@@ -68,4 +70,9 @@ def get_torchvision_model(model_name: str) -> torch.nn.Module:
         from torchvision.models.googlenet import googlenet
 
         model_fn = googlenet
+    elif model_name.startswith('densenet'):
+        import torchvision.models.densenet as densenet
+
+        model_fn = getattr(densenet, model_name)
+
     return model_fn

@@ -8,8 +8,8 @@ from ..util import to_tf
 from .common import converter
 
 
-@converter('Reshape')
-def reshape(node: OnnxNode, _, *inputs):
+@converter('Reshape', override=True)
+def reshape(node, input_tensor, *inputs):
     """
     A operation that reshapes the input array or layer.
     @credit to onnx2keras for the implementation
@@ -20,40 +20,16 @@ def reshape(node: OnnxNode, _, *inputs):
     """
     logger = logging.getLogger('onnx::Reshape')
     input_layer, shape_arr = inputs
+    try:
+        shape_arr = shape_arr.numpy()
+    except Exception:
+        pass
     output_layer = None
-    attributes = node.attributes
     if isinstance(shape_arr, np.ndarray):
 
         if isinstance(input_layer, np.ndarray):
             logger.debug('input layer is numpy array. Doing np.reshape')
             output = np.reshape(input_layer, np.int32(shape_arr))
-
-        elif 'change_ordering' in attributes:
-
-            # Fix critical issue with NHWC
-            if shape_arr[0] is None and shape_arr[1] == -1:
-                logger.warning('!!! IMPORTANT INFORMATION !!!')
-                logger.warning('The target shape if [None, -1] that means flatten.')
-                logger.warning('But the target ordering is NHWC, so we cant simply perform flatten')
-                logger.warning('The layer will be converted as lambda with tf.transpose')
-                logger.warning('---')
-
-                def target_layer(x):
-                    import tensorflow as tf
-
-                    # input dimensions for PyTorch are BCHW, whereas TF / Keras default is BHWC
-                    # Change from TF / Keras Shape (BHWC) -> PyTorch (BCHW)
-                    x = tf.transpose(x, [0, 3, 1, 2])
-                    return x
-
-                output_layer = keras.layers.Lambda(target_layer)
-                output = output_layer(input_layer)
-            else:
-                output = input_layer
-
-            output_layer = keras.layers.Reshape(np.int32(shape_arr[1:]))
-            output = output_layer(output)
-
         else:
             logger.debug('The first argument is Keras/tf layer. Apply keras.Reshape.')
             reshape_target = np.int32(shape_arr[1:])
@@ -62,14 +38,19 @@ def reshape(node: OnnxNode, _, *inputs):
                 reshape_target = np.int32(shape_arr)
                 logger.warning(f'Removing batch dimensions ... new shape: {reshape_target} ')
 
+            transform_layer = keras.layers.Permute((3, 1, 2))
+            tensor_chw = transform_layer(input_layer)
+
             # Removing entire feature dimension. Output shape is : (feature_count,)
             if len(reshape_target) == 1 and reshape_target[0] == -1:
-                error_msg = 'Removing entire feature dimension (1-dim vector) ... This is not allowed in Keras.'
-                raise ValueError(error_msg)
+                output_layer = keras.layers.Flatten(name=f'{node.name}_flatten')
+                output = output_layer(tensor_chw)
+                print(f'Final output: {output}')
+                return output, None
+
             else:
                 output_layer = keras.layers.Reshape(reshape_target)
-                print(f'Input layer: {input_layer}, shape arr: {reshape_target}')
-                output = output_layer(input_layer)
+                output = output_layer(tensor_chw)
     else:
         raise AttributeError('Cannot reshape array with dynamic size')
     return output, output_layer

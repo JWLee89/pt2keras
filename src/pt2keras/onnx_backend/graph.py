@@ -241,8 +241,9 @@ class Graph:
             self.forward_input_cache[node.name] = outputs
 
             # Add to output data if output_node found
-            if node.output_nodes[0] in self.output_names:
-                output_list.append(outputs)
+            for output_node in node.output_nodes:
+                if output_node in self.output_names:
+                    output_list.append(outputs)
 
             Graph._LOGGER.info(f'Successfully converted: {node}')
 
@@ -252,8 +253,8 @@ class Graph:
         if has_unsupported_ops:
             unsupported_operations = '\n- '.join(unsupported_ops)
             raise ValueError(
-                'Failed to convert model. The following operations are currently unsupported: '
-                f'{unsupported_operations}'
+                'Failed to convert model. The following operations are currently unsupported: \n'
+                f'- {unsupported_operations}'
             )
 
         # In case there are multiple outputs

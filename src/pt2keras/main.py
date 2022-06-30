@@ -11,7 +11,7 @@ from .paths import get_converter_absolute_path
 class Pt2Keras:
     _AVAILABLE_IR = ('onnx',)
     _SUPPORTED_LAYERS = {key: {} for key in _AVAILABLE_IR}
-    _LOGGER = logging.getLogger()
+    _LOGGER = logging.getLogger(__name__)
     _CONVERTERS_IMPORTED = False
 
     def __init__(self, opset_version: int = 13):
