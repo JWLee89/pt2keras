@@ -20,10 +20,18 @@ def reshape(node, input_tensor, *inputs):
     """
     logger = logging.getLogger('onnx::Reshape')
     input_layer, shape_arr = inputs
-    try:
-        shape_arr = shape_arr.numpy()
-    except Exception:
-        pass
+
+    # In case shape_arr is a tuple, we need to convert to np array.
+    if isinstance(shape_arr, tuple):
+        shape_arr = np.array(shape_arr, dtype=np.int32).reshape(-1)
+
+    # Otherwise, if the shape_arr is tf.Tensor, we attempt to convert it to numpy
+    else:
+        try:
+            shape_arr = shape_arr.numpy()
+        except Exception:
+            pass
+
     output_layer = None
     if isinstance(shape_arr, np.ndarray):
 
@@ -37,7 +45,6 @@ def reshape(node, input_tensor, *inputs):
             if not reshape_target:
                 reshape_target = np.int32(shape_arr)
                 logger.warning(f'Removing batch dimensions ... new shape: {reshape_target} ')
-
 
             tensor_chw = keras_input_to_pt(input_layer)
 
