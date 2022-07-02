@@ -9,7 +9,7 @@ we cn utilize the Google TensorBoard and Coral Edge TPUS. Although models alread
 in TensorFlow were easy to export, I was having difficulty exporting models developed in PyTorch.
 
 This project was designed to export PyTorch models to TensorFlow while maintaining the ability to 
-upload the model to the EdgeTPU without running into errors.s
+upload the model to the EdgeTPU without running into errors.
 
 ## Supported Networks
 
@@ -25,30 +25,22 @@ The following networks have been tested and are supported
 
 ## Installation 
 
-Since the project has not yet been uploaded to pypi, right now the best method 
-of installing would be to clone the repo and run `setup.py`.
+The package can be installed via the following command. 
 
 ```shell
-python setup.py install
-```
 
-Afterwards, go to a terminal and try the following: 
+# -U for upgrading existing packages
+
+pip install -U pt2keras
+
+```
 
 ```shell
 from pt2keras import Pt2Keras
 ```
 
-This will be updated on the release of 0.0.1
-
-[comment]: <> (To install `pt2keras`, type in the following:)
-
-[comment]: <> (```shell)
-
-[comment]: <> (# -U for upgrading existing packages)
-
-[comment]: <> (pip install -U pt2keras)
-
-[comment]: <> (```)
+If it works without any errors, then the package has been successfully `installed`. 
+Afterwards, check out the `demo/demo.py` source code for examples on how to use pt2keras.
 
 ## How to use
 
