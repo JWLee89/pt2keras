@@ -12,7 +12,7 @@ import logging
 import tensorflow as tf
 from common import default_args, get_torchvision_model
 
-from pt2keras import Pt2Keras
+from src.pt2keras import Pt2Keras
 
 if __name__ == '__main__':
     args = default_args()
@@ -32,5 +32,3 @@ if __name__ == '__main__':
 
     # Save the model
     keras_model.save('output_model.h5')
-
-    # Do whatever else that you want to do ... yee ...

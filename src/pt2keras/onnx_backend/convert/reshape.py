@@ -8,7 +8,7 @@ from ..util import keras_input_to_pt, to_tf
 from .common import converter
 
 
-@converter('Reshape', override=True)
+@converter('Reshape')
 def reshape(node, input_tensor, *inputs):
     """
     A operation that reshapes the input array or layer.

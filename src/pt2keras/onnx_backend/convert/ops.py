@@ -157,19 +157,22 @@ def dropout(node: OnnxNode, input_layer, input_tensor):
 
 
 @converter('Gemm')
-def gemm(node: OnnxNode, input_layer, *input_tensor):
+def gemm(node, input_layer, *input_tensor):
     """
     Implementation for General Matrix Multiplication
     """
     attributes = node.attributes
     dense_layer = None
-    # Check if Bias available
     if len(input_tensor) == 3:
         has_bias = True
         keras_weights = [input_tensor[1], input_tensor[2]]
+    # Check if Bias available
     elif len(input_tensor) == 2:
+        has_bias = True
+        keras_weights = [input_tensor[0], input_tensor[1]]
+    elif len(input_tensor) == 1:
         has_bias = False
-        keras_weights = [input_tensor[1]]
+        keras_weights = [input_tensor[0]]
     else:
         raise AttributeError('More than 3 or less than 2 inputs')
 
@@ -181,7 +184,7 @@ def gemm(node: OnnxNode, input_layer, *input_tensor):
     input_channels, output_channels = keras_weights[0].shape
 
     if isinstance(keras_weights[0], np.ndarray):
-        dense_layer = keras.layers.Dense(
+        dense_layer = tf.keras.layers.Dense(
             output_channels,
             weights=keras_weights,
             bias_initializer='zeros',
@@ -193,13 +196,14 @@ def gemm(node: OnnxNode, input_layer, *input_tensor):
         try:
             output = dense_layer(input_layer)
         except ValueError:
-            reshape = keras.layers.Reshape([input_channels])
+            input_channels, output_channels = keras_weights[0].shape
+            reshape = tf.keras.layers.Reshape([input_channels])
             reshaped_x = reshape(input_layer)
             output = dense_layer(reshaped_x)
 
     else:
-        dense_layer = keras.layers.Multiply()
-        output = keras.layers.Multiply()(input_layer, keras_weights[0])
+        dense_layer = tf.keras.layers.Multiply()
+        output = tf.keras.layers.Multiply()(input_layer, keras_weights[0])
 
     return output, dense_layer
 
