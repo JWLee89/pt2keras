@@ -129,11 +129,12 @@ def _test_operation(node: OnnxNode, opset_version, input_keras_layer, output_ker
     Returns:
         True if tested, otherwise return False.
     """
+    logger = logging.getLogger(f'{__name__}._test_operation')
     if output_keras_layer is None:
         if node.op_type == 'Constant':
-            _LOGGER.debug(f'Skipping test for Constant node: {node}')
+            logger.debug(f'Skipping test for Constant node: {node}')
         else:
-            _LOGGER.warning(f'Output keras layer not available. Skipping test for node: \n {node}. ')
+            logger.warning(f'Output keras layer not available. Skipping test for node: \n {node}. ')
         return False
 
     # Create attributes for making node for onnxruntime inference
@@ -235,7 +236,7 @@ def _test_operation(node: OnnxNode, opset_version, input_keras_layer, output_ker
         onnx_output = onnx_session.run(None, input_dict)
         onnx_runtime_ms = (time.monotonic() - onnx_start_time) * 1000
 
-        _LOGGER.debug(
+        logger.debug(
             f'Node: {node.name}, op: {node.op_type}. \n'
             f'onnxruntime speed: {onnx_runtime_ms} ms\n'
             f'keras speed: {keras_runtime_ms} ms'
@@ -247,7 +248,11 @@ def _test_operation(node: OnnxNode, opset_version, input_keras_layer, output_ker
         is_approximately_equal(onnx_output, keras_output, node=node)
         return True
     except Exception as ex:
-        _LOGGER.warning(f'Error while creating automated test for node: {node}. \n' f'Exception: {ex}')
+        logger.warning(
+            f'Error while creating automated test for Layer: {output_keras_layer}.\n '
+            f'node: {node}. \n'
+            f'Exception: {ex}'
+        )
         return False
 
 

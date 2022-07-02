@@ -19,7 +19,7 @@ if __name__ == '__main__':
     model_name = args.model
     input_shape = args.input_shape
 
-    # Grab mode
+    # Grab model
     model = get_torchvision_model(model_name)(pretrained=False).eval()
 
     # Create pt2keras object
@@ -32,3 +32,5 @@ if __name__ == '__main__':
 
     # Save the model
     keras_model.save('output_model.h5')
+
+    # Do whatever else that you want to do ... yee ...
