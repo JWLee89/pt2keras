@@ -35,6 +35,8 @@ pip install -U pt2keras
 
 ```
 
+Afterwards, try importing the library using the following command:
+
 ```shell
 from pt2keras import Pt2Keras
 ```

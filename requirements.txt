@@ -1,8 +1,9 @@
 # Dependencies: Don't need GPU
 # -------------------
 numpy
-torch
-torchvision
+# Latest version results in funky values
+torch<1.12
+torchvision<0.13
 onnx
 onnxruntime
 # For running tests to see whether outputs are identical from onnx model
