@@ -40,6 +40,7 @@ class Graph:
         self.model = None
         self.pytorch_input_shape = None
         self.output_names = None
+        self.input_names = None
 
         self.node_dict = OrderedDict()
         # The computational graph value we are building up
@@ -58,7 +59,7 @@ class Graph:
         onnx.checker.check_model(self.onnx_model)
         self.ort_session = ort.InferenceSession(onnx_path)
 
-    def _load_model(self, model: t.Union[nn.Module, str], input_shape: t.Tuple):
+    def _load_model(self, model: t.Union[nn.Module, str], input_shape: t.Union[t.Tuple, t.List[t.Tuple]]):
         """
         Given a model, load the model and create the onnx runtime session object
         Args:
@@ -70,7 +71,7 @@ class Graph:
         if isinstance(self.model, nn.Module):
             # For now, we assume that there is only a single input
             # We can later change this to support multiple inputs
-            dummy_input = torch.randn(input_shape)
+            dummy_input = torch.randn(self.pytorch_input_shape)
             output = self.model(dummy_input)
 
             # Parse output names
@@ -80,6 +81,14 @@ class Graph:
                     self.output_names.append(f'output_{i}')
             else:
                 self.output_names.append('output_0')
+
+            # Parse input_names =
+            self.input_names = []
+            if isinstance(self.pytorch_input_shape, (t.Tuple, t.List)):
+                for i in range(len(self.pytorch_input_shape)):
+                    self.input_names.append(f'input_{i}')
+            else:
+                self.input_names.append('input_0')
 
             # Save PyTorch model as .onnx
             hash_str = f'__{hash(model)}__.onnx'
@@ -91,7 +100,7 @@ class Graph:
                 verbose=False,
                 opset_version=self.opset_version,
                 export_params=True,
-                input_names=['input_0'],
+                input_names=self.input_names,
                 output_names=self.output_names,
             )
 
@@ -220,6 +229,8 @@ class Graph:
             conversion_func = self._SUPPORTED_OPERATIONS[op_type]
             node_inputs = []
 
+            # Onnx computational graph
+            # ----------------------------------
             # add inputs
             for input_node in node.input_nodes:
                 if input_node in self.computational_graph:

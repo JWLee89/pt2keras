@@ -116,7 +116,7 @@ def _test_double_input_operation(node: OnnxNode, opset_version, input_keras_laye
     return True
 
 
-def _test_operation(node: OnnxNode, opset_version, input_keras_layer, output_keras_layer, *inputs) -> bool:
+def _test_operation(node: OnnxNode, opset_version: int, input_keras_layer, output_keras_layer, *inputs) -> bool:
     """
     The default testing function. After each layer / operation is made,
     the test will be run to ensure that the output from the onnx model
