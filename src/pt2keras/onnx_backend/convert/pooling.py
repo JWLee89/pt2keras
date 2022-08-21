@@ -1,13 +1,9 @@
 import logging
 
-import tensorflow as tf
-import torch
-import torch.nn as nn
 from tensorflow import keras
 
 from ..graph import OnnxNode
-from ..util import keras_input_to_pt
-from .common import converter, is_approximately_equal
+from .common import converter
 
 
 @converter('GlobalAveragePool')
