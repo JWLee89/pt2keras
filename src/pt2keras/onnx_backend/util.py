@@ -121,8 +121,9 @@ def get_graph_shape_info(graph: onnx.GraphProto, transpose_list: t.Union[t.List,
         A list containing information on the graph input node
     """
     shape_info = []
-    for node in graph.input:
-        data = get_node_property(node, transpose_list)
+    for node, transpose_shape in zip(graph.input, transpose_list):
+        print(f'yee: {node.name}, transpose shape: {transpose_shape}')
+        data = get_node_property(node, transpose_shape)
         shape_info.append(data)
     return shape_info
 
