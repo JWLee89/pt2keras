@@ -15,6 +15,36 @@ def identity(node: OnnxNode, input_layer, *inputs):
     return inputs, None
 
 
+@converter('Abs')
+def abs(node: OnnxNode, input_layer, *inputs):
+    absolute_value = K.abs(input_layer)
+    return absolute_value, K.abs
+
+
+@converter('Acos')
+def acos(node: OnnxNode, input_layer, *inputs):
+    def target_layer(x):
+        import tensorflow as tf
+
+        layer = tf.math.acos(x)
+        return layer
+
+    acos_layer = keras.layers.Lambda(target_layer, name=f'keras_acos_{node.name}')
+    return acos_layer(input_layer), acos_layer
+
+
+@converter('Ceil')
+def ceil(node: OnnxNode, input_layer, *inputs):
+    def target_layer(x):
+        import tensorflow as tf
+
+        layer = tf.math.ceil(x)
+        return layer
+
+    ceil_layer = keras.layers.Lambda(target_layer, name=f'keras_ceil_{node.name}')
+    return ceil_layer(input_layer), ceil_layer
+
+
 @converter('Constant')
 def constant(node: OnnxNode, input_layer, *inputs):
     """

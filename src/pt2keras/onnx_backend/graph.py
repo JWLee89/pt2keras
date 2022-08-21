@@ -188,7 +188,7 @@ class Graph:
         input_shape = self.pytorch_input_shape
 
         # Change image shape from BCHW to BHWC (TensorFlow / Keras default shape)
-        dims = (i for i in range(len(input_shape))) if len(input_shape) != 4 or input_shape[-1] == 3 else (0, 2, 3, 1)
+        dims = [(i for i in range(len(input_shape))) if len(input_shape) != 4 or input_shape[-1] == 3 else (0, 2, 3, 1)]
 
         # For now, assume we are working with models that have a single input.
         # we will later need to test this with models that have multiple inputs
