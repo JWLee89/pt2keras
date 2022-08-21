@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 from common import default_args
 
-from pt2keras import Pt2Keras
+from src.pt2keras import Pt2Keras
 
 
 class DummyModel(nn.Module):
@@ -64,7 +64,18 @@ if __name__ == '__main__':
 
     print(f'pt shape: {x_pt.shape}, x_keras.shape: {x_keras.shape}')
 
-    keras_model: tf.keras.Model = converter.convert(model, shape)
+    keras_model: tf.keras.Model = converter.convert(model, shape, dynamic_batch=True)
+    # check
+    shape[0] = 4
+
+    # Generate inputs with batch_size 4 to show dynamic batching feture
+    x_pt = torch.randn(shape)
+    # Generate dummy inputs
+    x_keras = tf.convert_to_tensor(deepcopy(x_pt.numpy()))
+
+    # input dimensions for PyTorch are BCHW, whereas TF / Keras default is BHWC
+    if len(x_keras.shape) == 4:
+        x_keras = tf.transpose(x_keras, (0, 2, 3, 1))
 
     # Make PT model the same input dimension as Keras
     # If the output is >= 4 dimensional

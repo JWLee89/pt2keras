@@ -79,7 +79,6 @@ def conv(node: OnnxNode, input_layer, *inputs):
         # Example from https://kratzert.github.io/2017/02/24/finetuning-alexnet-with-tensorflow.html
         def target_layer(x, groups=n_groups, stride_y=strides[0], stride_x=strides[1]):
             import tensorflow as tf
-            from tensorflow.keras import backend as K
 
             def convolve_lambda_biased(i, k, b):
                 import tensorflow as tf

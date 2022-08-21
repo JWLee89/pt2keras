@@ -84,7 +84,9 @@ class Graph:
 
             # Parse input_names =
             self.input_names = []
-            if isinstance(self.pytorch_input_shape, (t.Tuple, t.List)):
+            if isinstance(self.pytorch_input_shape, (t.Tuple, t.List)) and isinstance(
+                self.pytorch_input_shape[0], (t.Tuple, t.List)
+            ):
                 for i in range(len(self.pytorch_input_shape)):
                     self.input_names.append(f'input_{i}')
             else:
@@ -156,9 +158,19 @@ class Graph:
                     if constant_node_output not in self.computational_graph:
                         self.computational_graph[constant_node_output] = onnx_node_obj.attributes['value']
 
-    def convert(self, model: t.Union[nn.Module, str], input_shape: t.Tuple, strict: bool = False):
+    def convert(
+        self, model: t.Union[nn.Module, str], input_shape: t.Tuple, strict: bool = False, dynamic_batch: bool = False
+    ):
         """
         Convert the PyTorch model into Keras
+        Args:
+            model: The PyTorch / onnx model to convert to Keras
+            input_shape: The size of the input
+            strict: If set to true, do strict check for each layer for output differences
+            dynamic_batch: Set to true to create a PyTorch model with dynamic batch dimension
+
+        Returns:
+            The converterd Keras Model
         """
         # initialization phase:
         # ------------------------------------------------------
@@ -195,8 +207,8 @@ class Graph:
             raise ValueError(error_msg)
 
         # Create input object to feed to the model.
-        # This will need to change in the future if we want to support multiple inputs
-        inputs = keras.Input(batch_shape=input_shape)
+        inputs = keras.Input(shape=input_shape[1:]) if dynamic_batch else keras.Input(batch_shape=input_shape)
+        print(f'Inputs: {inputs}')
         self.forward_input_cache[input_name] = inputs
         outputs = inputs
 
