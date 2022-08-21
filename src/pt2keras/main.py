@@ -66,7 +66,7 @@ class Pt2Keras:
     def set_logging_level(self, logging_level):
         Pt2Keras._LOGGER.setLevel(logging_level)
 
-    def convert(self, model, input_shape, strict: bool = False):
+    def convert(self, model, input_shape, strict: bool = False, dynamic_batch: bool = False):
         """
         Perform conversion
         Args:
@@ -74,13 +74,14 @@ class Pt2Keras:
             input_shape: The input Tensor shape
             strict: If set to true, an error will be thrown if
             any single tensor value deviates by a certain threshold.
+            dynamic_batch: Set to true to create model with dynamic batch dimension
 
         Returns:
             The converted keras version of the PyTorch model
         """
         self._init_converters(model)
         self._validate()
-        return self.graph.convert(model, input_shape, strict)
+        return self.graph.convert(model, input_shape, strict, dynamic_batch)
 
     def inspect(self, model: nn.Module) -> t.Tuple[t.List, t.List]:
         """

@@ -158,7 +158,10 @@ def _test_operation(node: OnnxNode, opset_version: int, input_keras_layer, outpu
     input_dict = {}
     start_index = 0
     if len(node.input_nodes) - 1 == len(inputs):
-        input_shape = keras_input_to_pt(input_keras_layer).shape
+        input_shape = list(keras_input_to_pt(input_keras_layer).shape)
+        if input_shape[0] is None:
+            input_shape[0] = 1
+
         node_name = node.input_nodes[0]
         value = helper.make_tensor_value_info(node_name, onnx.AttributeProto.FLOAT, input_shape)
         input_dict[node_name] = np.random.rand(*input_shape).astype(np.float32)
@@ -195,7 +198,10 @@ def _test_operation(node: OnnxNode, opset_version: int, input_keras_layer, outpu
 
     # TODO: Make sure that we can receive multiple inputs
     if node_to_update:
-        input_dict[key] = np.random.randn(*keras_input_to_pt(input_keras_layer).shape).astype(np.float32)
+        shape = list(keras_input_to_pt(input_keras_layer).shape)
+        if shape[0] is None:
+            shape[0] = 1
+        input_dict[key] = np.random.randn(*shape).astype(np.float32)
         onnx_tensor = input_dict[key]
 
     if len(input_keras_layer.shape) == 4:
