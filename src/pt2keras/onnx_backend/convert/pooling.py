@@ -82,7 +82,7 @@ def _test_max_pool(node: OnnxNode, opset_version, input_keras_layer, output_kera
     return True
 
 
-@converter('MaxPool', op_testing_fn=_test_max_pool)
+@converter('MaxPool')
 def max_pool(node: OnnxNode, input_layer, _):
 
     attributes = node.attributes

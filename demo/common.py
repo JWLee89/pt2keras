@@ -22,7 +22,7 @@ def get_arg_parser() -> argparse.ArgumentParser:
     Retrieve argument parser with required inputs for demo
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default=_AVAILABLE_DEMO_MODELS[0], choices=_AVAILABLE_DEMO_MODELS)
+    parser.add_argument('--model', type=str, default=_AVAILABLE_DEMO_MODELS[-1], choices=_AVAILABLE_DEMO_MODELS)
     parser.add_argument(
         '--input_shape',
         nargs='+',

@@ -71,7 +71,7 @@ def conv(node: OnnxNode, input_layer, *inputs):
         )
         outputs = output_layer(input_layer)
         # # skip test
-        output_layer = None
+        # output_layer = None
 
     elif n_groups != 1:
         logger.debug('Number of groups more than 1, but less than number of in_channel, use group convolution')

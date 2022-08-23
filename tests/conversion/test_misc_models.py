@@ -1,4 +1,5 @@
 import pytest
+import torch
 from torchvision.models.alexnet import alexnet
 from torchvision.models.googlenet import googlenet
 from torchvision.models.inception import inception_v3
@@ -24,4 +25,4 @@ def test_vgg(converter, model_class, input_sizes):
     Args:
         input_sizes: The size of the inputs
     """
-    do_conversion(converter, model_class, input_sizes, strict=False)
+    do_conversion(converter, model_class, torch.rand(input_sizes), strict=False)

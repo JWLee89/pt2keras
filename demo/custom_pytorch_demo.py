@@ -10,7 +10,10 @@ import torch
 import torch.nn as nn
 from common import default_args
 
-from src.pt2keras import Pt2Keras
+try:
+    from src.pt2keras import Pt2Keras
+except ImportError:
+    from pt2keras import Pt2keras
 
 
 class DummyModel(nn.Module):
@@ -64,7 +67,7 @@ if __name__ == '__main__':
 
     print(f'pt shape: {x_pt.shape}, x_keras.shape: {x_keras.shape}')
 
-    keras_model: tf.keras.Model = converter.convert(model, shape, dynamic_batch=True)
+    keras_model: tf.keras.Model = converter.convert(model, x_pt, dynamic_batch=True)
     # check
     shape[0] = 4
 

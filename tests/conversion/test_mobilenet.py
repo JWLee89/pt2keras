@@ -1,4 +1,5 @@
 import pytest
+import torch
 import torchvision.models.mobilenet as mobilenet
 
 from tests.common import do_conversion, input_sizes_to_test
@@ -21,4 +22,4 @@ def test_mobilenet(converter, model_class, input_sizes):
         model_class: The model class to test
         input_sizes: The size of the inputs
     """
-    do_conversion(converter, model_class, input_sizes)
+    do_conversion(converter, model_class, torch.randn(input_sizes), strict=False)

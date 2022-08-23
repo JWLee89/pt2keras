@@ -1,4 +1,5 @@
 import pytest
+import torch
 import torchvision.models.vgg as vgg
 
 from tests.common import do_conversion
@@ -14,4 +15,4 @@ def test_vgg(converter, model_class, input_sizes):
         model_class: The model class to test
         input_sizes: The size of the inputs
     """
-    do_conversion(converter, model_class, input_sizes, strict=True)
+    do_conversion(converter, model_class, torch.randn(input_sizes), strict=True)

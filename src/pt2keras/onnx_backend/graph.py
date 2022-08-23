@@ -59,20 +59,25 @@ class Graph:
         onnx.checker.check_model(self.onnx_model)
         self.ort_session = ort.InferenceSession(onnx_path)
 
-    def _load_model(self, model: t.Union[nn.Module, str], input_shape: t.Union[t.Tuple, t.List[t.Tuple]]):
+    def _load_model(
+        self,
+        model: t.Union[nn.Module, str],
+        input_data: t.Union[torch.Tensor, t.List[torch.Tensor], t.Tuple[torch.Tensor]],
+    ):
         """
         Given a model, load the model and create the onnx runtime session object
         Args:
             model: The model or onnx model path.
-            input_shape: The shape of the input to be fed into the neural network.
+            input_data: The shape of the input to be fed into the neural network.
         """
         self.model = model
-        self.pytorch_input_shape = input_shape
+        self.pytorch_input_shape = (
+            input_data.shape if isinstance(input_data, torch.Tensor) else [tensor.shape for tensor in input_data]
+        )
         if isinstance(self.model, nn.Module):
             # For now, we assume that there is only a single input
             # We can later change this to support multiple inputs
-            dummy_input = torch.randn(self.pytorch_input_shape)
-            output = self.model(dummy_input)
+            output = self.model(input_data)
 
             # Parse output names
             self.output_names = []
@@ -96,7 +101,7 @@ class Graph:
             hash_str = f'__{hash(model)}__.onnx'
             torch.onnx.export(
                 self.model,
-                dummy_input,
+                input_data,
                 hash_str,
                 do_constant_folding=True,  # whether to execute constant folding for optimization
                 verbose=False,
@@ -208,7 +213,6 @@ class Graph:
 
         # Create input object to feed to the model.
         inputs = keras.Input(shape=input_shape[1:]) if dynamic_batch else keras.Input(batch_shape=input_shape)
-        print(f'Inputs: {inputs}')
         self.forward_input_cache[input_name] = inputs
         outputs = inputs
 

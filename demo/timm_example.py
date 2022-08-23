@@ -10,10 +10,14 @@ pip install timm
 python demo.py --model resnet50 input_shape 1 3 224 224
 """
 import tensorflow as tf
+import torch
 from common import default_args
 from timm.models.efficientnet import efficientnet_em
 
-from pt2keras import Pt2Keras
+try:
+    from src.pt2keras import Pt2Keras
+except ImportError:
+    from pt2keras import Pt2keras
 
 if __name__ == '__main__':
     args = default_args()
@@ -26,7 +30,7 @@ if __name__ == '__main__':
     converter = Pt2Keras()
 
     # convert model
-    keras_model: tf.keras.Model = converter.convert(model, input_shape)
+    keras_model: tf.keras.Model = converter.convert(model, torch.randn(input_shape))
 
     # Save the model
     keras_model.save('output_model.h5')
