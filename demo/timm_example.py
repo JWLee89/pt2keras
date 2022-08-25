@@ -13,7 +13,10 @@ import tensorflow as tf
 from common import default_args
 from timm.models.efficientnet import efficientnet_em
 
-from pt2keras import Pt2Keras
+try:
+    from src.pt2keras import Pt2Keras
+except ImportError:
+    from pt2keras import Pt2Keras
 
 if __name__ == '__main__':
     args = default_args()

@@ -104,6 +104,7 @@ class Graph:
                 export_params=True,
                 input_names=self.input_names,
                 output_names=self.output_names,
+                training=torch.onnx.TrainingMode.TRAINING if self.model.training else torch.onnx.TrainingMode.EVAL,
             )
 
             # Check model and create onnx runtime session for inference
