@@ -125,6 +125,8 @@ pt2keras.core.onnx.convert.common.DuplicateOperatorError: Converter for "Relu" a
 However, the onnx model must perform operations PyTorch style.
 E.g. Model input must be in the form (Batch, Channel, Height, Width).
 
+Dynamic batch support was recently added and can be viewed under `demo/custom_pytorch_demo.py`
+
 ## License
 
 This software is covered by the MIT license.
